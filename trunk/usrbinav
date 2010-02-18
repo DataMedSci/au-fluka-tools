@@ -1,0 +1,13 @@
+#!/bin/bash
+
+for fort in "$@"
+
+do 
+	ls *.${fort} > ___data_list
+	echo " " >> ___data_list
+	echo usrbin_${fort} >> ___data_list
+	usbsuw < ___data_list
+	usrbin2ascii.py usrbin_${fort}
+	rm ___data_list
+done
+

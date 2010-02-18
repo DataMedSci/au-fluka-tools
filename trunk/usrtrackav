@@ -1,0 +1,12 @@
+#!/bin/bash
+
+for fort in "$@"
+
+do 
+	ls *.${fort} > ___data_list
+	echo " " >> ___data_list
+	echo usrtrk_${fort} >> ___data_list
+	ustsuw < ___data_list
+	rm ___data_list
+done
+
