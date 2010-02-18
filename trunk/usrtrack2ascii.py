@@ -1,46 +1,6 @@
 #!/usr/bin/env python
-# $Id: Data.py,v 1.11 2007/05/10 16:15:13 bnv Exp $
-#
-# Copyright and User License
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Copyright Vasilis.Vlachoudis@cern.ch for the
-# European Organization for Nuclear Research (CERN)
-#
-# All rights not expressly granted under this license are reserved.
-#
-# Installation, use, reproduction, display of the
-# software ("flair"), in source and binary forms, are
-# permitted free of charge on a non-exclusive basis for
-# internal scientific, non-commercial and non-weapon-related
-# use by non-profit organizations only.
-#
-# For commercial use of the software a license fee should be
-# payed to the author. Please contact the main author
-# Vasilis.Vlachoudis@cern.ch for further information.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following
-# conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright
-#    notice, this list of conditions and the following disclaimer in the
-#    documentation and/or other materials provided with the
-#    distribution.
-#
-# DISCLAIMER
-# ~~~~~~~~~~
-# THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT
-# NOT LIMITED TO, IMPLIED WARRANTIES OF MERCHANTABILITY, OF
-# SATISFACTORY QUALITY, AND FITNESS FOR A PARTICULAR PURPOSE
-# OR USE ARE DISCLAIMED. THE COPYRIGHT HOLDERS AND THE
-# AUTHORS MAKE NO REPRESENTATION THAT THE SOFTWARE AND
-# MODIFICATIONS THEREOF, WILL NOT INFRINGE ANY PATENT,
-#!/usr/bin/env python
 #########################################################################
-# Copyright (C) 2009 Niels Bassler, bassler@phys.au.dk
+# Copyright (C) 2010 Niels Bassler, bassler@phys.au.dk
 #
 # This program is free software; you can redistribute it and/or modify it 
 # under the terms of the GNU General Public License as published by the 
@@ -64,6 +24,8 @@
 #
 # change log
 # 18.2.2010, NB
+# - code cleanup
+# - adding stuff for handeling multiple detectors, does it work?
 # - removed flair code, which is now imported instead.
 # 22.11.2008, NB
 # - added fortran block length 128 support from upstream release
@@ -78,18 +40,23 @@
 # TODO:
 # - check if input files are binary before processing, improve file checking
 # - allow usrbin2ascii foo*   instead of     usrbin2ascii "foo*"
-# - less verbose
+# - less verbose option ?
 # - merge usrbin2ascii wtih usrtrack2ascii
 # - convert to shell scripts which sets flair path for python instead of this solution ?
+# - multiple detectors
+#########################################################################
+# DEPRECATED, should be merged with usrbin2ascii.py to new usr2ascii.py file.
+#
+# Development will until then happen in usrbin2ascii.py
+#######################################################################
 
-
-
-import math
-import struct
-
-#NB
-import os,sys, glob,re
+import os
+import sys
+import glob
+import re
 from optparse import OptionParser
+
+version = "1.2"
 
 def get_datapy_path():
     flairexe = "flair"
@@ -99,160 +66,161 @@ def get_datapy_path():
     extlist = ['']
     for p in paths:
         f = os.path.join(p, flairexe)
-	d = os.path.join(p, datapy)
-	if os.path.isfile(f):
+        d = os.path.join(p, datapy)
+        if os.path.isfile(f):
             if os.path.isfile(d):
                 return(p)
-	    else:
+            else:
                 raise IOError("Could not find Data.py")
-	
+        
     raise IOError("Could not find flair installation in PATH.")
 
 
+
+
+
 # ----------------------------------------------
-if __name__ == "__main__":
-	ddd = get_datapy_path()
-	sys.path.append(ddd)
-	sys.path.append(ddd+"/lib")
-	print sys.path
-	
-	from Data import *
 
-	version = "1.2"
+# check for flair environment variable
+ddd = get_datapy_path()
+sys.path.append(ddd)
+sys.path.append(ddd+"/lib")
 
-	parser = OptionParser()
-	parser.add_option("-s", "--suffix", dest="suffix",
-                  help="add this suffix to generated data. Default is \"_ascii.dat\".", metavar="string")
-	parser.add_option("-c", "--clean", action="store_true", dest="clean",
-                  default=False, help="Remove all files containing the suffix. Use carefully.")
-	parser.add_option("-F", "--FLUKA", action="store_true", dest="FLUKA",
-                  default=False, help="Fluka style fortran output, 10 data points per line.")
+from Data import *
 
+parser = OptionParser()
+parser.add_option("-s", "--suffix", dest="suffix",
+                  help="add this suffix to generated data. Default is \"_ascii.dat\".",
+                  metavar="string")
+parser.add_option("-c", "--clean", action="store_true", dest="clean",
+                  default=False, 
+                  help="Remove all files containing the suffix. Use carefully.")
+parser.add_option("-d", "--detector", dest="detector",
+                  help="If more detectors in binary file present, convert only this one.",
+                  metavar="int")
+parser.add_option("-F", "--FLUKA", action="store_true", dest="FLUKA",
+                  default=False, 
+                  help="Fluka style fortran output, 10 data points per line.")
+(options, args) = parser.parse_args()
 
-	(options, args) = parser.parse_args()
+if options.detector != None:
+    detector_select = int(options.detector)
+else:
+    detector_select = -1
 
-	if len(args) < 1:
-		print ""
-		print "usrbin2ascii.py Version", version
-		print ""
-		print "Error: no input file stated."
-		print "Usage: usrbin2ascii.py [options] binaryforfile"
-		print "See: -h for all options."
-		print "Filelists are supported when using quotations:"
-		print "usrbin2ascii.py \"foo*\""
-		sys.exit(0)
-	
-	filename = args[0]
+if len(args) < 1:
+    print ""
+    print "usrbin2ascii.py Version", version
+    print ""
 
-	if options.suffix == None:
-		suffix = "_ascii.dat"
-	else:
-		suffix = options.suffix
-#	print suffix
-#	print args[0]
+    print "Usage: usrbin2ascii.py [options] binaryforfile"
+    print "See: -h for all options."
+    print "File lists are supported when using quotations:"
+    print "usrbin2ascii.py \"foo*\""
+    raise IOError("Error: no input file(s) stated.")
 
-	filename_list = glob.glob(filename)
+filename = args[0]
+filename_list = glob.glob(filename)
 
-	# cleanup all files with suffix
-	if options.clean == True:
-		filename_list = glob.glob(filename+suffix)
-		for filename_temp in filename_list:
-			print "Removing filename", filename_temp
-			os.remove( filename_temp )
+if options.suffix == None:
+    suffix = "_ascii.dat"
+else:
+    suffix = options.suffix
 
 
+# cleanup all files with suffix
+if options.clean == True:
+        filename_list_suffix = glob.glob(filename+suffix)
+        for filename_temp in filename_list_suffix:
+                print "Removing filename", filename_temp
+                os.remove( filename_temp )
 
 
-	# reread filename list
-	filename_list = glob.glob(filename)
-	print filename_list
-	
-	if len(filename_list) < 1:
-		print("Error: %s does not exist." % filename)	
-		sys.exit(0)
-		
+# reread filename list
+# filename_list = glob.glob(filename)
+# print filename_list
 
-#	print filename, filename_list, len(filename_list)
+if len(filename_list) < 1:
+    raise IOError("Error: %s does not exist." % filename)       
 
-
-
-
-
-	for filename in filename_list:
-		print "opening binary file:", filename
-		mymatch = re.search(suffix,filename)
-		if mymatch != None:
-			print
-			print "Hmmm. It seems you have not deleted previous ascii output."
-			print "I will exit now. You may want to wish to delete all files ending with", suffix
-			print "You can do this easily by rerunning the program and using the -c option."
-			sys.exit(0)
-			
-		
+for filename in filename_list:
+    print "opening binary file:", filename
+    mymatch = re.search(suffix,filename)
+    if mymatch != None:
+        print
+        print "Hmmm. It seems you have not deleted previous ascii output."
+        print "I will exit now. You may want to wish to delete all files ending with",suffix
+        print "You can do this easily by rerunning the program and using the -c option."
+        sys.exit(0)
 
 
-		print "="*80
-		usr = Usrbin(filename)
-		usr.say()
-		for i in range(len(usr.detector)):
-			print "-"*50
-			usr.say(i)
+    print "="*80
+    usr = Usrbin(filename)
+    usr.say()  # file,title,time,weight,ncase,nbatch
+    for i in range(len(usr.detector)):
+        print "-"*20,"Detector number %i" %i,"-"*20
+        usr.say(i) # details for each detector
+    data = usr.readData(0)
 
 
-		data = usr.readData(0)
-	# no statistics there.
-	#	stats = usr.readStats(0)
+    print "len(data):", len(data)
+    fdata = unpackArray(data)
+    print "len(fdata):", len(fdata)
 
-		print "len(data):", len(data)
-		fdata = unpackArray(data)
-		print "len(fdata):", len(fdata)
+    if len([x for x in fdata if x>0.0]) > 0:                    
+        fmin = min([x for x in fdata if x>0.0])
+        print "Min=",fmin
+    else:
+        print "How sad. Your data contains only zeros."
+        print "Converting anyway."
+    if len(fdata) > 0:
+        fmax = max(fdata)
+        print "Max=",fmax
+    print "="*80
 
-		if len([x for x in fdata if x>0.0]) > 0:			
-			fmin = min([x for x in fdata if x>0.0])
-			print "Min=",fmin
-		else:
-			print "How sad. Your data contains only zeros."
-			print "Converting anyway."
-		if len(fdata) > 0:
-			fmax = max(fdata)
-			print "Max=",fmax
-	# 	print "Tot=",total[0],total[1]
+    # TODO: handle multiple detectors.
+    outfile = filename+suffix
+    print "Writing output to", outfile
+    f = open(outfile,'w')
+    det_number = 0
+    
+    pos = 0 # counter for data
+    # TODO, check with multiple detectors. Are the data sequentially ordered?
+    # At least we assume this here.
 
+    if (detector_select + 1) > len(usr.detector):
+        raise IOError("Selected detctor number %i is not available." %detector_select)
+    
+    for det in usr.detector:
+        #    det = usr.detector[0]
+        # this header is only needed, if more detectors are requested
+        if (len(usr.detector) > 1) and (detector_select == -1):
+            f.write("# Detector number %i\n" % det_number )
 
-		print "="*80
+        print "nx,ny,nz:", int(det.nx), int(det.ny), int(det.nz)
 
-		det = usr.detector[0]	
-		pos = 0
-		
-		outfile = filename+suffix
-
-		print "nx,ny,nz:", int(det.nx), int(det.ny), int(det.nz)
-
-		print "Writing output to", outfile
-		f = open(outfile,'w')
-		ifort = 0 # counter for fortran format
-		for iz in range(int(det.nz)):
-			for iy in range(int(det.ny)):
-				for ix in range(int(det.nx)):
-					fx = (ix/float(det.nx) * (det.xhigh-det.xlow)) + det.xlow
-					fy = (iy/float(det.ny) * (det.yhigh-det.ylow)) + det.ylow
-					fz = (iz/float(det.nz) * (det.zhigh-det.zlow)) + det.zlow
-					# middle of bins
-					fx += det.dx /2.0
-					fy += det.dy /2.0
-					fz += det.dz /2.0
-					#debug
-					#output_string = "%i %i %i %i %e %e %e %e\n" % (pos, ix,iy,iz,fx,fy,fz,fdata[pos])
-					if options.FLUKA == True:
-						output_string = "%.3e " % (fdata[pos])
-						ifort +=1
-						if ifort >= 10:
-							ifort = 0
-							output_string += "\n" # CR after 10 data points
-					else:
-						output_string = "%e %e %e %e\n" % (fx,fy,fz,fdata[pos])
-					pos += 1
-					f.write(output_string)
-		f.close()
-
-
+        ifort = 0 # counter for fortran format
+        for iz in range(int(det.nz)):
+            for iy in range(int(det.ny)):
+                for ix in range(int(det.nx)):
+                    fx = (ix/float(det.nx) * (det.xhigh-det.xlow)) + det.xlow
+                    fy = (iy/float(det.ny) * (det.yhigh-det.ylow)) + det.ylow
+                    fz = (iz/float(det.nz) * (det.zhigh-det.zlow)) + det.zlow
+                    # middle of bins
+                    fx += det.dx /2.0
+                    fy += det.dy /2.0
+                    fz += det.dz /2.0
+                    if options.FLUKA == True:
+                        output_string = "%.3e " % (fdata[pos])
+                        ifort +=1
+                        if ifort >= 10:
+                            ifort = 0
+                            output_string += "\n" # CR after 10 data points
+                    else:
+                        output_string = "%e %e %e %e\n" % (fx,fy,fz,fdata[pos])
+                    pos += 1
+                    if (det_number == detector_select) or (detector_select == -1):
+                        f.write(output_string)
+        det_number += 1
+        f.write("\n")
+    f.close()
