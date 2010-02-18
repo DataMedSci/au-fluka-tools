@@ -1,0 +1,2 @@
+Provides auxiliary tools for the Monte Carlo particle transport code FLUKA (www.fluka.org). Auflukatools features alternative binary -> ascii being more compatible with plotting programs, scripts for averaging multiple binary output files without user interaction and "rcfluka" for automatic parallelization of FLUKA  runs on computer clusters using the CONDOR job queing system.
+
