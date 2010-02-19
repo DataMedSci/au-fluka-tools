@@ -17,7 +17,8 @@
 # with this program; if not, see <http://www.gnu.org/licenses/>.
 #
 # 
-# Plotting FLUKA usrbins
+# Plotting functions for FLUKA usrbins. 
+# Note: For use with ipython, you must call ipython with -pylab
 #
 #
 # 
@@ -26,19 +27,28 @@
 #
 #
 # TODO:
-# - import the Data.py from flair in moderately sane way or indeed at all
+# - import the Data.py from flair in a better way
 # - Document code better
-
+import sys
+import subprocess
+import os
 import math
 import struct
-import pylab 
-from Data import *
+from pylab import *
+
 from scipy.io.numpyio import fread, fwrite
 from numpy import *
 from matplotlib.colors import LogNorm
 
 from enthought.mayavi import mlab
 
+#Warning, potentially very ugly way of importing the flair libs. 
+flair = subprocess.Popen(["whereis","flair"],stdout=subprocess.PIPE).stdout.read().split(" ")[2]
+flair = flair[0:len(flair)-1]
+sys.path.append(flair)
+sys.path.append(flair+"/lib")
+    
+from Data import *    
 
       
 class AUUsrbin(Usrbin):
@@ -65,9 +75,6 @@ class AUUsrbin(Usrbin):
 			normalization = bin.dx*bin.dy*bin.dz
 			data = data*normalization 
 		
-		blen2 = f.read(4)
-		if blen <> blen2:
-			raise "Error reading fortran block"
 		return data
 		
 			
@@ -76,14 +83,14 @@ class AUUsrbin(Usrbin):
 		bin = self.detector[det]
 		try:
 			bin.data
-		except NameError:
+		except AttributeError:
 			self.arrayRead(det)
 		sumaxis = [2,1,0]
 		sumaxis.remove(axis)
 		low,high = self.__ranges(det,start,stop)
 		#Get requested data
 		subdata = (slice(low[0],high[0]),slice(low[1],high[1]),slice(low[2],high[2]))
-		plotdata = self.data[subdata]
+		plotdata = bin.data[subdata]
 			
 		for x in sumaxis:
 			plotdata = sum(plotdata,x)
@@ -102,14 +109,14 @@ class AUUsrbin(Usrbin):
 		bin = self.detector[det]
 		try:
 			bin.data
-		except NameError:
+		except AttributeError:
 			self.arrayRead(det)
 		sumaxis = [2,1,0]
 		sumaxis.remove(axisX)
 		sumaxis.remove(axisY)
 		low,high = self.__ranges(det,start,stop)
 		subdata = (slice(low[0],high[0]),slice(low[1],high[1]),slice(low[2],high[2]))
-		plotdata = self.data[subdata]
+		plotdata = bin.data[subdata]
 		plotdata = sum(plotdata,sumaxis[0])
 		#Renormalize data
 		if (bin.type in [1,7,11,17]): #Cylinder bins
@@ -130,14 +137,14 @@ class AUUsrbin(Usrbin):
 		bin = self.detector[det]
 		try:
 			bin.data
-		except NameError:
+		except AttributeError:
 			self.arrayRead(det)
 		sumaxis = [2,1,0]
 		sumaxis.remove(axisX)
 		sumaxis.remove(axisY)
 		low,high = self.__ranges(det,start,stop)
 		subdata = (slice(low[0],high[0]),slice(low[1],high[1]),slice(low[2],high[2]))
-		plotdata = self.data[subdata]
+		plotdata = bin.data[subdata]
 		plotdata = sum(plotdata,sumaxis[0])
 		#Renormalize data
 		if (bin.type in [1,7,11,17]): #Cylinder bins
