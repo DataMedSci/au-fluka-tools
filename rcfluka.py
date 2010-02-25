@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 #########################################################################
-# Copyright (C) 2009 Niels Bassler, bassler@phys.au.dk
+# Copyright (C) 2010 Niels Bassler, bassler@phys.au.dk
 #
 # This program is free software; you can redistribute it and/or modify it 
 # under the terms of the GNU General Public License as published by the 
@@ -43,6 +43,8 @@
 # amount of nodes required.
 #
 # Change log:
+#   - 26.02.2010, NB prepare for standard universe
+#   - Feb 2010: rcfluka.py is now a part of auflukatools.sf.net
 #   - 24.09.2009, RH changed sequence, first send mail, than cleanup
 #   - 26.08.2009, NB Version 1.45, fix -N option
 #   - 03.08.2009, NB Version 1.44, single job submissions (-x)
@@ -69,9 +71,10 @@
 # TODO:
 #   - Consequent checking existence of files etc.
 #   - better  complete clean "-C"
-#   - standard universe
+#   - standard universe. (rfluka 32 bit, condor should provide 32 compat libs!)
 #   - test timeouts
 #   - reduce long temporary filenames
+#   - also remove ranfluka* with -c -C
 
 import os, re, sys
 import shutil # for fast file copy
@@ -79,7 +82,7 @@ import time, random, glob
 from subprocess import Popen
 from optparse import OptionParser
 
-version = "1.45"
+version = "1.46-alpha"
 
 dir_rfluka = '$FLUPRO/flutil/rfluka'
 
@@ -143,6 +146,8 @@ parser.add_option("-C", "--bigclean", action="store_true", dest="bigclean",
                   default=False, help="Remove almost all files, including data. Dangerous!")
 parser.add_option("-t", "--test", action="store_true", dest="test",
                   default=False, help="Test, do not submit to condor.")
+parser.add_option("-S", "--standard", action="store_true", dest="standard",
+                  default=False, help="Submit to standard universe.")
 parser.add_option("-l", "--linker", dest="LINKER",
                   help="Linker to use, e.g. ldpm3qmd.", metavar="FILE")
 parser.add_option("-o", "--optioncondor", dest="OPTC",
@@ -267,8 +272,12 @@ for ii in range(nr_jobs) :
             print sys.argv[0] +" Error: Please specify linker to use with the -l option. Exiting."
             sys.exit()
     
-    if options.LINKER != None:        
-        file.write( '$FLUPRO/flutil/'+options.LINKER)
+    if options.LINKER != None:
+        # use condor compile on linking script.
+        if options.standard == True:
+            file.write( 'condor_compile $FLUPRO/flutil/'+options.LINKER)
+        else:
+            file.write( '$FLUPRO/flutil/'+options.LINKER)
         if options.SOURCE != None:
                 for fff in options.SOURCE.split(","):
                     file.write( " " + fff)
@@ -283,7 +292,10 @@ for ii in range(nr_jobs) :
     # something is bad with the ownerships of the files when transferring. this is a fix:
     os.chmod(shell_filename,0744)
 
-    condor_universe = "vanilla"
+    if options.standard == False :
+        condor_universe = "vanilla"
+    else:
+        condor_universe = "standard"
     condor_filename = "_rcfluka_condor_submit"+temp_filename+".cdr"
     condor_stdout = "_rcfluka_condor_stdout_"+temp_filename+".txt"
     condor_log = "_rcfluka_condor.log"
@@ -297,7 +309,8 @@ for ii in range(nr_jobs) :
     condor_string += "Executable      = "  + shell_filename + "\n"
     condor_string += "Universe        = " + condor_universe + "\n"
     condor_string += "Output          = " + condor_stdout + "\n"
-    # just on abacus 
+    # just on abacus
+    # TODO: require linux (instead).
     condor_string += "Requirements = Arch == \"X86_64\"          \n"
     #
     if options.OPTC != None:
@@ -351,14 +364,14 @@ for ii in range(nr_jobs) :
 
         sss_lines = sss.readlines()
         sss.close() # is this correct?
-        sss_id = float(sss_lines[-1].split()[5]) # needs float becasause of .        
+        sss_id = float(sss_lines[-1].split()[5]) # needs float because of .        
         print "Submitted ", condor_filename, "with Condor id: ", sss_id
         sys.stdout.flush() # flush output for nohup
         sub_list[sss_id] = 1 # 1 for running
         
 
     #    p.append(Popen(exec_string, shell=True))
-    # aparantly there is some problem, if submitted to fast?
+    # aparantly there is some problem, if submitted too fast?
     #    time.sleep(1)
 
     # wait for PIDs to time out and remove old .inp files
@@ -438,6 +451,7 @@ for ii in range(nr_jobs):
 print sys.argv[0] + ": ---- Done calculations -------------------------------"
 print sys.argv[0] + ": ---- Copy files        -------------------------------"
 # sleep a lot of seconds, for condor to complete file transfer
+# race condition could be encountered here.
 time.sleep(30)
 
 # after execution, rename all files to normal terminology
