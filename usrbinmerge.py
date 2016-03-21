@@ -11,12 +11,11 @@ def merge(inputfiles, outputfile):
 
     for file in inputfiles[1:]:
         data = pandas.read_csv(file, sep=' ', names=('x','y','z','v'))
-        print(np.average(data['v']))
         result['v'] += data['v']
 
     result['v'] /= len(inputfiles)
 
-    result.to_csv(outputfile, sep=' ', header=False)
+    result.to_csv(outputfile, sep=' ', header=False, index=False)
 
 
 if __name__ == '__main__':
