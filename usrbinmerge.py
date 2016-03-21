@@ -15,6 +15,10 @@ def merge(inputfiles, outputfile):
 
     result['v'] /= len(inputfiles)
 
+    for axis in ('x','y','z'):
+        if np.unique(result[axis]).size == 1:
+            result.drop(axis,inplace=True,axis=1)
+
     result.to_csv(outputfile, sep=' ', header=False, index=False)
 
 
