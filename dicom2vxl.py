@@ -3,8 +3,6 @@ from scipy.stats import itemfreq
 import dicom,glob,struct
 from numpy import *
 
-from scipy.io import read_array
-from scipy.io import write_array
 from optparse import OptionParser
 
 def ascii2vxl(filename,output,title,dims,sep=" ",hu_min=-1000,roworder='C'):

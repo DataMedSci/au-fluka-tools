@@ -36,19 +36,12 @@ import math
 import struct
 from pylab import *
 
-from scipy.io.numpyio import fread, fwrite
 from numpy import *
 from matplotlib.colors import LogNorm
 
-from enthought.mayavi import mlab
+from mayavi import mlab
 
-#Warning, potentially very ugly way of importing the flair libs. 
-flair = subprocess.Popen(["whereis","flair"],stdout=subprocess.PIPE).stdout.read().split(" ")[2]
-flair = flair[0:len(flair)-1]
-sys.path.append(flair)
-sys.path.append(flair+"/lib")
-    
-from Data import *    
+from flair.Data import *
 
       
 class AUUsrbin(Usrbin):

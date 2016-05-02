@@ -1,0 +1,25 @@
+language: generic
+
+os:
+  - linux
+
+# require Ubuntu 14.04
+sudo: required
+dist: trusty
+
+python:
+    - "2.7"
+
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y python-scipy python-pandas python-matplotlib python-dicom mayavi2
+
+script:
+  - python dicom2vxl.py -h
+  - python rcfluka.py -h
+  - python usrbin2ascii.py -h
+  - python usrbinmerge.py -h
+  - python usrtrack2ascii.py -h
+
+# can't test on travis as flukaplot requires X connection
+#  - python flukaplot.py -h

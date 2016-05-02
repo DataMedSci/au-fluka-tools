@@ -53,35 +53,10 @@ from optparse import OptionParser
 
 version = "1.2"
 
-def get_datapy_path():
-    flairexe = "flair"
-    datapy = "Data.py"
-    path = os.environ["PATH"]
-    paths = path.split(os.pathsep)
-    extlist = ['']
-    for p in paths:
-        f = os.path.join(p, flairexe)
-        d = os.path.join(p, datapy)
-        if os.path.isfile(f):
-            if os.path.isfile(d):
-                return(p)
-            else:
-                raise IOError("Could not find Data.py")
-        
-    raise IOError("Could not find flair installation in PATH.")
-
-
-
-
-
 # ----------------------------------------------
 
 # check for flair environment variable
-ddd = get_datapy_path()
-sys.path.append(ddd)
-sys.path.append(ddd+"/lib")
-
-from Data import *
+from flair.Data import *
 
 parser = OptionParser()
 parser.add_option("-s", "--suffix", dest="suffix",
