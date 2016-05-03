@@ -73,7 +73,7 @@ parser.add_option("-F", "--FLUKA", action="store_true", dest="FLUKA",
                   help="Fluka style fortran output, 10 data points per line.")
 (options, args) = parser.parse_args()
 
-if options.detector != None:
+if options.detector is not None:
     detector_select = int(options.detector)
 else:
     detector_select = -1
@@ -92,14 +92,14 @@ if len(args) < 1:
 filename = args[0]
 filename_list = glob.glob(filename)
 
-if options.suffix == None:
+if options.suffix is None:
     suffix = "_ascii.dat"
 else:
     suffix = options.suffix
 
 
 # cleanup all files with suffix
-if options.clean == True:
+if options.clean:
         filename_list_suffix = glob.glob(filename+suffix)
         for filename_temp in filename_list_suffix:
                 print "Removing filename", filename_temp
@@ -116,7 +116,7 @@ if len(filename_list) < 1:
 for filename in filename_list:
     print "opening binary file:", filename
     mymatch = re.search(suffix,filename)
-    if mymatch != None:
+    if mymatch is not None:
         print
         print "Hmmm. It seems you have not deleted previous ascii output."
         print "I will exit now. You may want to wish to delete all files ending with",suffix
@@ -159,7 +159,7 @@ for filename in filename_list:
     # At least we assume this here.
 
     if (detector_select + 1) > len(usr.detector):
-        raise IOError("Selected detctor number %i is not available." %detector_select)
+        raise IOError("Selected detector number %i is not available." %detector_select)
     
     for det in usr.detector:
         #    det = usr.detector[0]
@@ -180,7 +180,7 @@ for filename in filename_list:
                     fx += det.dx /2.0
                     fy += det.dy /2.0
                     fz += det.dz /2.0
-                    if options.FLUKA == True:
+                    if options.FLUKA:
                         output_string = "%.3e " % (fdata[pos])
                         ifort +=1
                         if ifort >= 10:
