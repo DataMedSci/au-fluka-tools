@@ -60,9 +60,10 @@ __email__  = "Vasilis.Vlachoudis@cern.ch"
 
 import re
 import math
-import lib.bmath
 import struct
-import lib.fortran
+
+import lib.fortran as fortran
+import lib.bmath as bmath
 from lib.log import say
 
 try:
