@@ -60,7 +60,7 @@ __email__  = "Vasilis.Vlachoudis@cern.ch"
 import math
 import cmath
 from math import *
-import rexx
+import flair.lib.rexx as rexx
 import random
 
 # Accuracy for comparison operators
@@ -291,7 +291,7 @@ def format(number, length=10, useExp=False, useD=False):
 		if r>='5':
 			lint = len(integer)
 			if lint==0: integer = 0
-			integer = str(long(integer)+1)
+			integer = str(int(integer)+1)
 			if len(integer) > lint:
 				exponent += 1
 

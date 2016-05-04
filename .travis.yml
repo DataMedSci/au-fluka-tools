@@ -7,19 +7,20 @@ os:
 sudo: required
 dist: trusty
 
-python:
-    - "2.7"
-
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y python-scipy python-pandas python-matplotlib python-dicom mayavi2
+  - sudo apt-get install -y python3-scipy python3-pandas python3-matplotlib python3-pip
+  - sudo pip3 install pydicom
 
 script:
-  - python dicom2vxl.py -h
-  - python rcfluka.py -h
-  - python usrbin2ascii.py -h
-  - python usrbinmerge.py -h
-  - python usrtrack2ascii.py -h
+  - python3 -V
+  - python3 dicom2vxl.py -h
+  - python3 rcfluka.py -h
+  - python3 usrbin2ascii.py -h
+  - python3 usrbinmerge.py -h
+  - python3 usrtrack2ascii.py -h
+
+# flukaplot requires also mayavi, which is not available for Python3
 
 # can't test on travis as flukaplot requires X connection
 #  - python flukaplot.py -h

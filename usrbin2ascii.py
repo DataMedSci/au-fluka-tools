@@ -22,21 +22,6 @@
 #
 # NB: Niels Bassler, bassler@phys.au.dk,
 #
-# change log
-# 18.2.2010, NB
-# - code cleanup
-# - adding stuff for handeling multiple detectors, does it work?
-# - removed flair code, which is now imported instead.
-# 22.11.2008, NB
-# - added fortran block length 128 support from upstream release
-# - added -F option
-# 23.9.2008, NB
-# - added help text and option parser
-# - output suffix can now be set optionally and cleanup option
-# - added glob.glob
-# - fix exception if datafiles only contains zeros
-#
-#
 # TODO:
 # - check if input files are binary before processing, improve file checking
 # - allow usrbin2ascii foo*   instead of     usrbin2ascii "foo*"
@@ -50,13 +35,11 @@ import sys
 import glob
 import re
 from optparse import OptionParser
+from flair.Data import *
+
 
 version = "1.2"
 
-# ----------------------------------------------
-
-# check for flair environment variable
-from flair.Data import *
 
 parser = OptionParser()
 parser.add_option("-s", "--suffix", dest="suffix",
@@ -79,14 +62,14 @@ else:
     detector_select = -1
 
 if len(args) < 1:
-    print ""
-    print "usrbin2ascii.py Version", version
-    print ""
+    print("")
+    print("usrbin2ascii.py Version", version)
+    print("")
 
-    print "Usage: usrbin2ascii.py [options] binaryforfile"
-    print "See: -h for all options."
-    print "File lists are supported when using quotations:"
-    print "usrbin2ascii.py \"foo*\""
+    print("Usage: usrbin2ascii.py [options] binaryforfile")
+    print("See: -h for all options.")
+    print("File lists are supported when using quotations:")
+    print("usrbin2ascii.py \"foo*\"")
     raise IOError("Error: no input file(s) stated.")
 
 filename = args[0]
@@ -102,7 +85,7 @@ else:
 if options.clean:
         filename_list_suffix = glob.glob(filename+suffix)
         for filename_temp in filename_list_suffix:
-                print "Removing filename", filename_temp
+                print("Removing filename", filename_temp)
                 os.remove( filename_temp )
 
 
@@ -114,43 +97,43 @@ if len(filename_list) < 1:
     raise IOError("Error: %s does not exist." % filename)       
 
 for filename in filename_list:
-    print "opening binary file:", filename
+    print("opening binary file:", filename)
     mymatch = re.search(suffix,filename)
     if mymatch is not None:
-        print
-        print "Hmmm. It seems you have not deleted previous ascii output."
-        print "I will exit now. You may want to wish to delete all files ending with",suffix
-        print "You can do this easily by rerunning the program and using the -c option."
+        print()
+        print("Hmmm. It seems you have not deleted previous ascii output.")
+        print("I will exit now. You may want to wish to delete all files ending with",suffix)
+        print("You can do this easily by rerunning the program and using the -c option.")
         sys.exit(0)
 
 
-    print "="*80
+    print("="*80)
     usr = Usrbin(filename)
     usr.say()  # file,title,time,weight,ncase,nbatch
     for i in range(len(usr.detector)):
-        print "-"*20,"Detector number %i" %i,"-"*20
+        print("-"*20,"Detector number %i" %i,"-"*20)
         usr.say(i) # details for each detector
     data = usr.readData(0)
 
 
-    print "len(data):", len(data)
+    print("len(data):", len(data))
     fdata = unpackArray(data)
-    print "len(fdata):", len(fdata)
+    print("len(fdata):", len(fdata))
 
     if len([x for x in fdata if x>0.0]) > 0:                    
         fmin = min([x for x in fdata if x>0.0])
-        print "Min=",fmin
+        print("Min=",fmin)
     else:
-        print "How sad. Your data contains only zeros."
-        print "Converting anyway."
+        print("How sad. Your data contains only zeros.")
+        print("Converting anyway.")
     if len(fdata) > 0:
         fmax = max(fdata)
-        print "Max=",fmax
-    print "="*80
+        print("Max=",fmax)
+    print("="*80)
 
     # TODO: handle multiple detectors.
     outfile = filename+suffix
-    print "Writing output to", outfile
+    print("Writing output to", outfile)
     f = open(outfile,'w')
     det_number = 0
     
@@ -167,7 +150,7 @@ for filename in filename_list:
         if (len(usr.detector) > 1) and (detector_select == -1):
             f.write("# Detector number %i\n" % det_number )
 
-        print "nx,ny,nz:", int(det.nx), int(det.ny), int(det.nz)
+        print("nx,ny,nz:", int(det.nx), int(det.ny), int(det.nz))
 
         ifort = 0 # counter for fortran format
         for iz in range(int(det.nz)):

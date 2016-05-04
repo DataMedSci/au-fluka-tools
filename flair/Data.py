@@ -62,9 +62,9 @@ import re
 import math
 import struct
 
-import lib.fortran as fortran
-import lib.bmath as bmath
-from lib.log import say
+import flair.lib.fortran as fortran
+import flair.lib.bmath as bmath
+from flair.lib.log import say
 
 try:
 	from cStringIO import StringIO

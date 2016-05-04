@@ -78,36 +78,36 @@ parser.add_option("-F", "--FLUKA", action="store_true", dest="FLUKA",
                   help="Fluka style fortran output, 10 data points per line.")
 (options, args) = parser.parse_args()
 
-if options.detector != None:
+if options.detector is not None:
     detector_select = int(options.detector)
 else:
     detector_select = -1
 
 if len(args) < 1:
-    print ""
-    print "usrbin2ascii.py Version", version
-    print ""
+    print("")
+    print("usrbin2ascii.py Version", version)
+    print("")
 
-    print "Usage: usrbin2ascii.py [options] binaryforfile"
-    print "See: -h for all options."
-    print "File lists are supported when using quotations:"
-    print "usrbin2ascii.py \"foo*\""
+    print("Usage: usrbin2ascii.py [options] binaryforfile")
+    print("See: -h for all options.")
+    print("File lists are supported when using quotations:")
+    print("usrbin2ascii.py \"foo*\"")
     raise IOError("Error: no input file(s) stated.")
 
 filename = args[0]
 filename_list = glob.glob(filename)
 
-if options.suffix == None:
+if options.suffix is None:
     suffix = "_ascii.dat"
 else:
     suffix = options.suffix
 
 
 # cleanup all files with suffix
-if options.clean == True:
+if options.clean:
         filename_list_suffix = glob.glob(filename+suffix)
         for filename_temp in filename_list_suffix:
-                print "Removing filename", filename_temp
+                print("Removing filename", filename_temp)
                 os.remove( filename_temp )
 
 
@@ -119,43 +119,43 @@ if len(filename_list) < 1:
     raise IOError("Error: %s does not exist." % filename)       
 
 for filename in filename_list:
-    print "opening binary file:", filename
+    print("opening binary file:", filename)
     mymatch = re.search(suffix,filename)
-    if mymatch != None:
-        print
-        print "Hmmm. It seems you have not deleted previous ascii output."
-        print "I will exit now. You may want to wish to delete all files ending with",suffix
-        print "You can do this easily by rerunning the program and using the -c option."
+    if mymatch is not None:
+        print("")
+        print("Hmmm. It seems you have not deleted previous ascii output.")
+        print("I will exit now. You may want to wish to delete all files ending with",suffix)
+        print("You can do this easily by rerunning the program and using the -c option.")
         sys.exit(0)
 
 
-    print "="*80
+    print("="*80)
     usr = Usrbin(filename)
     usr.say()  # file,title,time,weight,ncase,nbatch
     for i in range(len(usr.detector)):
-        print "-"*20,"Detector number %i" %i,"-"*20
+        print("-"*20,"Detector number %i" %i,"-"*20)
         usr.say(i) # details for each detector
     data = usr.readData(0)
 
 
-    print "len(data):", len(data)
+    print("len(data):", len(data))
     fdata = unpackArray(data)
-    print "len(fdata):", len(fdata)
+    print("len(fdata):", len(fdata))
 
     if len([x for x in fdata if x>0.0]) > 0:                    
         fmin = min([x for x in fdata if x>0.0])
-        print "Min=",fmin
+        print("Min=",fmin)
     else:
-        print "How sad. Your data contains only zeros."
-        print "Converting anyway."
+        print("How sad. Your data contains only zeros.")
+        print("Converting anyway.")
     if len(fdata) > 0:
         fmax = max(fdata)
-        print "Max=",fmax
-    print "="*80
+        print("Max=",fmax)
+    print("="*80)
 
     # TODO: handle multiple detectors.
     outfile = filename+suffix
-    print "Writing output to", outfile
+    print("Writing output to", outfile)
     f = open(outfile,'w')
     det_number = 0
     
@@ -172,7 +172,7 @@ for filename in filename_list:
         if (len(usr.detector) > 1) and (detector_select == -1):
             f.write("# Detector number %i\n" % det_number )
 
-        print "nx,ny,nz:", int(det.nx), int(det.ny), int(det.nz)
+        print("nx,ny,nz:", int(det.nx), int(det.ny), int(det.nz))
 
         ifort = 0 # counter for fortran format
         for iz in range(int(det.nz)):
