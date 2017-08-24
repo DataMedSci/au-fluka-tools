@@ -23,7 +23,6 @@
 * TODO guessing how many columns are in the file
 * TODO rescaling of sigma using mutliple scattering theory
 * TODO energy reduction (nozzle exit -> virtual source)
-* TODO print nice message when sobp.dat file is missing
 
       SUBROUTINE SOURCE ( NOMORE )
 
@@ -71,7 +70,7 @@
       DOUBLE PRECISION ENERGY(65000), XPOS(65000), YPOS(65000)
       DOUBLE PRECISION FWHM(65000), PART(65000)
       INTEGER NWEIGHT
-      LOGICAL LPNTSRC
+      LOGICAL LEXISTS, LPNTSRC
       DOUBLE PRECISION SRC2SPOT
 
       SAVE ENERGY, XPOS, YPOS
@@ -99,6 +98,13 @@
 *  |  *** User initialization ***
 * Fluka run happens in a temporary directory, created in same level as input file
 * sobp.dat is not copied there, so reach one level up to get it
+
+* Warn if sobp.dat file is missing
+         inquire(file='../sobp.dat',exist=lexists)
+         IF(.NOT. LEXISTS) THEN
+           WRITE(LUNOUT,*) 'SOBP FILE sobp.dat missing'
+         END IF
+
          OPEN(44, FILE = '../sobp.dat',
      $        STATUS = 'OLD')
          WRITE(LUNOUT,*) 'SOBP SOURCE ZPOS fixed to', ZBEAM
