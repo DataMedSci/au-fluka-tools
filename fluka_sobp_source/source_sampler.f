@@ -1,17 +1,29 @@
 *$ CREATE SOURCE.FOR
 *COPY SOURCE
 *
+* Useful materials on how to prepare user source can be found here:
+* http://www.fluka.org/content/course/NEA/lectures/UserRoutines.pdf
+*
 * To compile this code, run:
-* $FLUPRO/flutil/ldpm3qmd SOURCE_SOBP.F -o flukadpm3_sobp
+* $FLUPRO/flutil/ldpm3qmd source_sampler.f -o flukadpm3_sobp
 *
 * In order to use it, pass it as a parameter to rfluka executable:
 * rfluka -N0 -M1 -e flukadpm3_sobp your_input_file
 *
 * Documentation of the SOURCE is here http://www.fluka.org/fluka.php?id=man_onl&sub=71
 * example source card:
-* SOURCE          11.0      12.0      13.0      14.0      15.0      16.0sobp.dat
+* SOURCE           1.0      12.0      13.0      14.0      15.0      16.0sobp.dat
 *===  source ===========================================================*
 *
+
+* TODO include description of 3 sobp.dat file formats (5,6,7 columns)
+* TODO include skipping comment lines
+* TODO 6 columns format implementation
+* TODO 7 columns format implementation
+* TODO guessing how many columns are in the file
+* TODO rescaling of sigma using mutliple scattering theory
+* TODO energy reduction (nozzle exit -> virtual source)
+* TODO print nice message when sobp.dat file is missing
 
       SUBROUTINE SOURCE ( NOMORE )
 
@@ -59,12 +71,12 @@
       DOUBLE PRECISION ENERGY(65000), XPOS(65000), YPOS(65000)
       DOUBLE PRECISION FWHM(65000), PART(65000)
       INTEGER NWEIGHT
-
+      LOGICAL LPNTSRC
+      DOUBLE PRECISION SRC2SPOT
 
       SAVE ENERGY, XPOS, YPOS
       SAVE FWHM, PART
       SAVE NWEIGHT
-
 
       LOGICAL LFIRST
 *
@@ -90,6 +102,17 @@
          OPEN(44, FILE = '../sobp.dat',
      $        STATUS = 'OLD')
          WRITE(LUNOUT,*) 'SOBP SOURCE ZPOS fixed to', ZBEAM
+         WRITE(LUNOUT,*) 'SOBP USER PARAM LIST', WHASOU
+
+* First parameter in SOURCE indicated whether point-like or parallel source is used
+* Positive number indicates point-like source
+         IF ( WHASOU(1) .GT. 0.0D0 ) THEN
+            WRITE(LUNOUT,*) 'SOBP POINT-LIKE VIRTUAL SOURCE'
+            LPNTSRC = .TRUE.
+         ELSE
+            WRITE(LUNOUT,*) 'SOBP PARALLEL VIRTUAL SOURCE'
+            LPNTSRC = .FALSE.
+         END IF
 
          IF ( IJBEAM .EQ. -2 .AND. LRDBEA ) THEN
           IJHION = IPROZ  * 1000 + IPROA
@@ -168,17 +191,28 @@
          WRITE(LUNOUT,*) 'SOBP SOURCE ERROR. NRAN, RAN:', NRAN, RAN
       END IF
 
+*     No energy spread at the moment
       ENK = ENERGY(NRAN)
-      XBEAM = XPOS(NRAN)
-      YBEAM = YPOS(NRAN)
+
+*     First goes point like source. Source is located at (0,0,ZBEAM)
+*     whatever user provides as XBEAM and YBEAM is overriden with zeros
+      IF( LPNTSRC ) THEN
+        XBEAM = 0.0D0
+        YBEAM = 0.0D0
+*     Second goes parallel source. Whatever user provides as XBEAM and YBEAM is overriden.
+*     For each spot center os spot positions goes to XBEAM and YBEAM.
+      ELSE
+        XBEAM = XPOS(NRAN)
+        YBEAM = YPOS(NRAN)
+      END IF
+
+*     Now we set initial displacement (relative to the spot center)
+*     Starting value -> sigma
       XSPOT = FWHM(NRAN)/2.35482
       YSPOT = XSPOT
 
+
 *** End of beamlet sample ********************************************
-
-
-
-
 
 
 *  +-------------------------------------------------------------------*
@@ -264,24 +298,49 @@
 ****************************************************************
 
 *sample a gaussian position
-*      IF (Ldygss) THEN
       CALL FLNRR2 (RGAUS1, RGAUS2)
-      XFLK   (NPFLKA) = XBEAM + XSPOT * RGAUS1
-      YFLK   (NPFLKA) = YBEAM + YSPOT * RGAUS2
-      ZFLK   (NPFLKA) = ZBEAM
+
+* use center position and displacement multiplied by a
+* random number sampled from gaussian distribution N(0,1)
+      XFLK(NPFLKA) = XBEAM + XSPOT * RGAUS1
+      YFLK(NPFLKA) = YBEAM + YSPOT * RGAUS2
+      ZFLK(NPFLKA) = ZBEAM
+
+* calculate distance from virtual beam source to the center of spot position
+      SRC2SPOT = SQRT(ZBEAM*ZBEAM+XPOS(NRAN)*XPOS(NRAN)
+     & + YPOS(NRAN)*YPOS(NRAN))
 
 *      WRITE(LUNOUT,*) 'SOBP SOURCE gaussian sampled'
 
-* Cosines (tx,ty,tz) (fix along z axis)
+* Direction cosines (tx,ty,tz)
+      IF( LPNTSRC ) THEN
 
-      TXFLK  (NPFLKA) = ZERZER
-      TYFLK  (NPFLKA) = ZERZER
-      TZFLK  (NPFLKA) = ONEONE
-*      WRITE(LUNOUT,*) 'SOBP SOURCE cosines set'
+* we use a vector from virtual source to the spot center (at isocenter plane)
+* to calculate direction cosines
+        TXFLK  (NPFLKA) = XPOS(NRAN) / SRC2SPOT
+        TYFLK  (NPFLKA) = YPOS(NRAN) / SRC2SPOT
+      ELSE
+
+* parallel beam, direction cosines are (0,0,1)
+        TXFLK  (NPFLKA) = ZERZER
+        TYFLK  (NPFLKA) = ZERZER
+      END IF
+
+      WRITE(LUNOUT,*) 'SOBP SOURCE cosine X', TXFLK  (NPFLKA)
+      WRITE(LUNOUT,*) 'SOBP SOURCE cosine Y', TYFLK  (NPFLKA)
+
+* to ensure proper normalization last cosine (tz) is calculated
+* from the first two (tx, ty)
+      TZFLK (NPFLKA) = SQRT ( ONEONE - TXFLK(NPFLKA)*TXFLK(NPFLKA)
+     & - TYFLK(NPFLKA)*TYFLK(NPFLKA))
+
+      WRITE(LUNOUT,*) 'SOBP SOURCE cosine Z', TZFLK  (NPFLKA)
+
+      WRITE(LUNOUT,*) 'SOBP SOURCE cosines set'
 *********************************************************************
 * Particle momentum
 *      PMOFLK (NPFLKA) = PBEAM
-*      WRITE(LUNOUT,*) 'SOBP SOURCE mark',AM (IONID)
+*      WRITE(LUNOUT,*) 'SOBP SOURCE rest mass',AM (IONID)
        CALL FLNRRN(RGAUSS)
        PMOFLK (NPFLKA) = SQRT ( ENK* ( ENK
      &     + TWOTWO * AM (IONID) ))
@@ -296,7 +355,7 @@
 *      WRITE(LUNOUT,*) 'SOBP SOURCE set ekin'
 
 
-* Polarization cosines:
+* Polarization cosines (TXPOL=-2 flag for "no polarization"):
       TXPOL  (NPFLKA) = -TWOTWO
       TYPOL  (NPFLKA) = +ZERZER
       TZPOL  (NPFLKA) = +ZERZER
