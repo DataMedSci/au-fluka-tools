@@ -17,12 +17,39 @@
 *
 
 * TODO include description of 3 sobp.dat file formats (5,6,7 columns)
-* TODO include skipping comment lines
-* TODO 6 columns format implementation
 * TODO 7 columns format implementation
-* TODO guessing how many columns are in the file
 * TODO rescaling of sigma using mutliple scattering theory
 * TODO energy reduction (nozzle exit -> virtual source)
+
+!> @brief
+!! Returns number of text blocks separated with white characters (spaces)
+!! It corresponds to number of columns in CSV file.
+!! @param[in] STRING
+!! @retval LENGTH number of columns
+      INTEGER FUNCTION NOCOLS(ASTRING)
+      IMPLICIT NONE
+      CHARACTER*(*) ASTRING   ! input - string of arbitrary length
+      INTEGER I               !
+      NOCOLS = 0
+
+! make a loop and check for non-space followed by space
+! each occurence will mark end of a column
+      DO I = 1, LEN(ASTRING)-1
+         IF((ASTRING(I:I) .NE. ' ') .AND.
+     & (ASTRING(I+1:I+1) .EQ. ' ')) THEN
+            NOCOLS = NOCOLS + 1
+         END IF
+
+! in a special case when last character isn't a space, add another column
+      IF ( ASTRING(LEN(ASTRING):LEN(ASTRING)) .NE. ' ' ) THEN
+        NOCOLS = NOCOLS + 1
+      END IF
+
+      END DO
+
+      RETURN
+      END
+
 
       SUBROUTINE SOURCE ( NOMORE )
 
@@ -67,14 +94,17 @@
 *
 *
 *
-      DOUBLE PRECISION ENERGY(65000), XPOS(65000), YPOS(65000)
-      DOUBLE PRECISION FWHM(65000), PART(65000)
-      INTEGER NWEIGHT
+      DOUBLE PRECISION ENERGY(65000), DELTAE(65000)
+      DOUBLE PRECISION XPOS(65000), YPOS(65000)
+      DOUBLE PRECISION FWHMX(65000), FWHMY(65000)
+      DOUBLE PRECISION PART(65000)
+      INTEGER NWEIGHT, NOCOLUMNS
       LOGICAL LEXISTS, LPNTSRC
       DOUBLE PRECISION SRC2SPOT
+      CHARACTER(8192) LINE
 
-      SAVE ENERGY, XPOS, YPOS
-      SAVE FWHM, PART
+      SAVE ENERGY, DELTAE, XPOS, YPOS
+      SAVE FWHMX, FWHMY, PART
       SAVE NWEIGHT
 
       LOGICAL LFIRST
@@ -107,6 +137,20 @@
 
          OPEN(44, FILE = '../sobp.dat',
      $        STATUS = 'OLD')
+
+
+         LINE(1:1) = '*'
+* skip comment lines, first non-comment line will be saved to LINE
+         DO WHILE( LINE(1:1) .EQ. '*' )
+            READ(44,'(A)',END=10) LINE
+         END DO
+
+         WRITE(LUNOUT,*) 'SOBP FIRST LINE', TRIM(LINE)
+         NOCOLUMNS = NOCOLS(LINE)
+         WRITE(LUNOUT,*) 'SOBP NUMBER OF COLUMNS', NOCOLUMNS
+
+         REWIND(44)
+
          WRITE(LUNOUT,*) 'SOBP SOURCE ZPOS fixed to', ZBEAM
          WRITE(LUNOUT,*) 'SOBP USER PARAM LIST', WHASOU
 
@@ -147,8 +191,37 @@
                WRITE(LUNOUT,*) 'SOBP SOURCE ERROR: too many beamlets'
             ENDIF
 
-            READ(44,*,END=10) ENERGY(NWEIGHT),XPOS(NWEIGHT),
-     $            YPOS(NWEIGHT),FWHM(NWEIGHT),PART(NWEIGHT)
+            LINE(1:1) = '*'
+* skip comment lines, first non-comment line will be saved to LINE
+            DO WHILE( LINE(1:1) .EQ. '*' )
+              READ(44,'(A)',END=10) LINE
+            END DO
+
+
+            IF( NOCOLUMNS .EQ. 5 ) THEN
+
+              READ(LINE,*,END=10) ENERGY(NWEIGHT),XPOS(NWEIGHT),
+     $            YPOS(NWEIGHT),FWHMX(NWEIGHT),PART(NWEIGHT)
+              FWHMY = FWHMX
+              DELTAE = 0.0D0
+
+            ELSE IF ( NOCOLUMNS .EQ. 6 ) THEN
+
+              READ(LINE,*,END=10) ENERGY(NWEIGHT),XPOS(NWEIGHT),
+     $            YPOS(NWEIGHT),FWHMX(NWEIGHT),FWHMY(NWEIGHT),
+     $            PART(NWEIGHT)
+              DELTAE = 0.0D0
+
+            ELSE IF ( NOCOLUMNS .EQ. 7 ) THEN
+
+              READ(LINE,*,END=10) ENERGY(NWEIGHT), DELTAE(NWEIGHT),
+     $            XPOS(NWEIGHT), YPOS(NWEIGHT),
+     $            FWHMX(NWEIGHT),FWHMY(NWEIGHT),
+     $            PART(NWEIGHT)
+
+            ELSE
+                WRITE(LUNOUT,*) 'INCOMPATIBLE NO OF COLUMNS ',NOCOLUMNS
+            END IF
 
             WSUM = WSUM + PART(NWEIGHT)
 *
@@ -214,8 +287,8 @@
 
 *     Now we set initial displacement (relative to the spot center)
 *     Starting value -> sigma
-      XSPOT = FWHM(NRAN)/2.35482
-      YSPOT = XSPOT
+      XSPOT = FWHMX(NRAN)/2.35482
+      YSPOT = FWHMY(NRAN)/2.35482
 
 
 *** End of beamlet sample ********************************************
