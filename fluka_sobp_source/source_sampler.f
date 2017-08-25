@@ -17,8 +17,7 @@
 *
 
 * TODO include description of 3 sobp.dat file formats (5,6,7 columns)
-* TODO 7 columns format implementation
-* TODO rescaling of sigma using mutliple scattering theory
+* TODO 7 columns format implementation (including DE)
 * TODO energy reduction (nozzle exit -> virtual source)
 
 !> @brief
@@ -50,6 +49,34 @@
       RETURN
       END
 
+
+!> @brief
+!! Returns sigma calculated from scattering angle in air
+!! Uses Lynch and Dahl approximation
+!! @param[in] X  scattering path in air in [cm]
+!! @param[in] E  particle energy in MeV/amu
+!! @param[in] Z  ion charge
+!! @param[in] M  rest mass in MeV/amu
+!! @retval SCATTER scattering sigma in [cm]
+      DOUBLE PRECISION FUNCTION SCATTER(X, E, Z, M)
+      IMPLICIT NONE
+      DOUBLE PRECISION X,E,M
+      INTEGER Z
+
+      DOUBLE PRECISION X0     ! radiation length of air in [cm]
+      DOUBLE PRECISION THETA0 ! scattering angle in [rad]
+      DOUBLE PRECISION BETA   ! relative velocity
+      DOUBLE PRECISION CP     ! speed of light * particle momentum
+
+      X0 = 30390.D0
+      CP = SQRT((E+M)*(E+M)-M*M)
+      BETA = CP/(E+M)
+      THETA0 = (13.6/(BETA*CP))*Z
+      THETA0 = THETA0 * SQRT(X/X0)*(1.D0+0.038*LOG(X/X0))
+
+      SCATTER = 1.D0/SQRT(3.D0) * THETA0  * X
+      RETURN
+      END
 
       SUBROUTINE SOURCE ( NOMORE )
 
@@ -100,8 +127,10 @@
       DOUBLE PRECISION PART(65000)
       INTEGER NWEIGHT, NOCOLUMNS
       LOGICAL LEXISTS, LPNTSRC
-      DOUBLE PRECISION SRC2SPOT
+      DOUBLE PRECISION SRC2SPOT, AIRSCAT
       CHARACTER(8192) LINE
+
+      DOUBLE PRECISION FWHM2SIGMA
 
       SAVE ENERGY, DELTAE, XPOS, YPOS
       SAVE FWHMX, FWHMY, PART
@@ -117,6 +146,8 @@
 *                                                                      *
 *======================================================================*
       NOMORE = 0
+
+      FWHM2SIGMA = 2.0D0 * SQRT( 2.0D0 * LOG(2.0D0))
 *  +-------------------------------------------------------------------*
 *  |  First call initializations:
       IF ( LFIRST ) THEN
@@ -234,6 +265,7 @@
 * we use a method IBARCH to get baryonic charge which
 * reduces to mass number for particles of interest
            ENERGY(NWEIGHT) = ENERGY(NWEIGHT) * IBARCH(IONID)
+           WRITE(LUNOUT,*) 'SOBP correcting with', IBARCH(IONID)
 
          ENDDO
  10      CONTINUE
@@ -242,13 +274,6 @@
          WRITE(LUNOUT,*) 'SOBP SOURCE beamlets found:', NWEIGHT
          WRITE(LUNOUT,*) 'SOBP SOURCE Particle sum (float) :', WSUM
          WRITE(LUNOUT,*) 'SOBP SOURCE TODO: particle sum is not exact.'
-
-* check for gaussian, for future implementation
-         IF ((Ldygss) .AND. (Ldxgss)) THEN
-            WRITE(LUNOUT,*) 'SOBP SOURCE GAUSSIAN: TRUE'
-         ELSE
-            WRITE(LUNOUT,*) 'SOBP SOURCE GAUSSIAN: FALSE'
-         ENDIF
 
       END IF
 
@@ -287,8 +312,28 @@
 
 *     Now we set initial displacement (relative to the spot center)
 *     Starting value -> sigma
-      XSPOT = FWHMX(NRAN)/2.35482
-      YSPOT = FWHMY(NRAN)/2.35482
+      XSPOT = FWHMX(NRAN)/FWHM2SIGMA
+      YSPOT = FWHMY(NRAN)/FWHM2SIGMA
+
+*     Air scattering correction
+      AIRSCAT = SCATTER(-ZBEAM,
+     &       1.D3*ENK, IBARCH(IONID), 1.D3*AM(IONID))
+
+      WRITE(LUNOUT,*) 'SOBP E:', 1.D3*ENK, 'MeV/amu'
+      WRITE(LUNOUT,*) 'SOBP Z:', -ZBEAM, 'cm'
+      WRITE(LUNOUT,*) 'SOBP SCAT:', AIRSCAT, 'cm'
+      WRITE(LUNOUT,*) 'SOBP XSPOT:', XSPOT, 'cm'
+      WRITE(LUNOUT,*) 'SOBP YSPOT:', YSPOT, 'cm'
+
+      IF( XSPOT .GT. AIRSCAT) THEN
+        XSPOT = SQRT( XSPOT*XSPOT - AIRSCAT*AIRSCAT)
+      END IF
+      IF( YSPOT .GT. AIRSCAT) THEN
+        YSPOT = SQRT( YSPOT*YSPOT - AIRSCAT*AIRSCAT)
+      END IF
+
+      WRITE(LUNOUT,*) 'SOBP XSPOT BIS:', XSPOT
+      WRITE(LUNOUT,*) 'SOBP YSPOT BIS:', YSPOT
 
 
 *** End of beamlet sample ********************************************
