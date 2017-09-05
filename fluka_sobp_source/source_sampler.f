@@ -17,8 +17,8 @@
 *
 
 * TODO include description of 3 sobp.dat file formats (5,6,7 columns)
-* TODO 7 columns format implementation (including DE)
 * TODO energy reduction (nozzle exit -> virtual source)
+* TODO safe check if negative energy is sampled in case of energy spread
 
 !> @brief
 !! Returns number of text blocks separated with white characters (spaces)
@@ -160,10 +160,12 @@
 * Fluka run happens in a temporary directory, created in same level as input file
 * sobp.dat is not copied there, so reach one level up to get it
 
-* Warn if sobp.dat file is missing
+* Warn if sobp.dat file is missing, stop calculation
          inquire(file='../sobp.dat',exist=lexists)
          IF(.NOT. LEXISTS) THEN
            WRITE(LUNOUT,*) 'SOBP FILE sobp.dat missing'
+           NOMORE = 1
+           RETURN
          END IF
 
          OPEN(44, FILE = '../sobp.dat',
@@ -252,6 +254,8 @@
 
             ELSE
                 WRITE(LUNOUT,*) 'INCOMPATIBLE NO OF COLUMNS ',NOCOLUMNS
+                NOMORE = 2
+                RETURN
             END IF
 
             WSUM = WSUM + PART(NWEIGHT)
@@ -265,7 +269,7 @@
 * we use a method IBARCH to get baryonic charge which
 * reduces to mass number for particles of interest
            ENERGY(NWEIGHT) = ENERGY(NWEIGHT) * IBARCH(IONID)
-           WRITE(LUNOUT,*) 'SOBP correcting with', IBARCH(IONID)
+*           WRITE(LUNOUT,*) 'SOBP correcting with', IBARCH(IONID)
 
          ENDDO
  10      CONTINUE
@@ -279,6 +283,7 @@
 
 *** Sample a beamlet ****************************
 
+*     Get a
       RAN = FLRNDM(111)
 
 *     http://infohost.nmt.edu/tcc/help/lang/fortran/scaling.html
@@ -293,9 +298,11 @@
 
       IF ((NRAN .GT. NWEIGHT) .OR. (NRAN .LT. 1)) THEN
          WRITE(LUNOUT,*) 'SOBP SOURCE ERROR. NRAN, RAN:', NRAN, RAN
+         NOMORE = 3
+         RETURN
       END IF
 
-*     No energy spread at the moment
+*     Kinetic energy (in GeV/amu)
       ENK = ENERGY(NRAN)
 
 *     First goes point like source. Source is located at (0,0,ZBEAM)
@@ -439,7 +446,7 @@
 * Direction cosines (tx,ty,tz)
       IF( LPNTSRC ) THEN
 
-* we use a vector from virtual source to the spot center (at isocenter plane)
+* we use a vector from virtual source to the spot center (at the isocenter plane)
 * to calculate direction cosines
         TXFLK  (NPFLKA) = XPOS(NRAN) / SRC2SPOT
         TYFLK  (NPFLKA) = YPOS(NRAN) / SRC2SPOT
@@ -463,20 +470,69 @@
       WRITE(LUNOUT,*) 'SOBP SOURCE cosines set'
 *********************************************************************
 * Particle momentum
+
+*      IF( DELTAE .GT. 0.0D0 ) THEN
+*
+*      END IF
+
 *      PMOFLK (NPFLKA) = PBEAM
 *      WRITE(LUNOUT,*) 'SOBP SOURCE rest mass',AM (IONID)
+
+*      Basic equation which relates particle energy and momentum is:
+*
+*         p^2 c^2 + m0^2 c^4 = E^2                 (1)
+*
+*      Total energy E can be written as the sum of kinetic energy T and rest energy:
+*
+*         p^2 c^2 + m0^2 c^4 = (T + m0 c^2)^2      (2)
+*
+*      By doing simple math we can extract from this formula following relations:
+*
+*         T = sqrt(p^2 c^2 + m0^2 c^4) - m0 c^2    (3)
+*         p c = sqrt( E (E + 2 m0 c^2) )           (4)
+*
+*      We use following variables below:
+*        @   PMOFLK - particle momentum, in GeV/c
+*        @   AM(IONID) - particle rest energy, in GeV
+*        @   ENK - particle kinetic energy, in GeV
+*
+
+*      Lets get a normally distributed random number RGAUSS
        CALL FLNRRN(RGAUSS)
-       PMOFLK (NPFLKA) = SQRT ( ENK* ( ENK
+
+       IF ( NOCOLUMNS .EQ. 7 ) THEN
+*      In case sobp.dat file has 7 columns, we expect than
+*      energy spread will be there, set as standard deviation
+*      First lets sample gaussian energy distribution.
+*      Mean energy is set to ENK, value from sobp.dat file
+*      Standard deviation is also taken from sobp.dat file
+          TKEFLK (NPFLKA) = ENK + DELTAE(NRAN)*RGAUSS
+*      WRITE(LUNOUT,*) 'SOBP SOURCE EKIN', TKEFLK(NPFLKA)
+
+*      Momentum of the particle, according to eq (4)
+          PMOFLK (NPFLKA) = SQRT ( TKEFLK (NPFLKA)*
+     &     ( TKEFLK (NPFLKA) + TWOTWO * AM (IONID) ))
+*      WRITE(LUNOUT,*) 'SOBP SOURCE MOMENTUM', PMOFLK(NPFLKA)
+
+       ELSE
+
+*      In case energy spread is not provided in sobp.dat file,
+*      we can use a momentum spread from BEAM input card (which by default is set to 0).
+*      Mean momentum is calculated from kinetic energy of the spot, using eq (4)
+*      Standard deviation is obtained from FWHM value set by user in the input card (DPBEAM)
+
+          PMOFLK (NPFLKA) = SQRT ( ENK* ( ENK
      &     + TWOTWO * AM (IONID) ))
      &     +DPBEAM*RGAUSS/2.35482
+*      WRITE(LUNOUT,*) 'SOBP SOURCE MOMENTUM', PMOFLK(NPFLKA)
 
-
-* Kinetic energy of the particle (GeV)
-* set energy
-      TKEFLK (NPFLKA) = SQRT(PMOFLK(NPFLKA)**2 + AM(IONID)**2)
+*      Kinetic energy of the particle (GeV), according to eq (3)
+          TKEFLK (NPFLKA) = SQRT(PMOFLK(NPFLKA)**2 + AM(IONID)**2)
      &      -AM(IONID)
+*      WRITE(LUNOUT,*) 'SOBP SOURCE EKIN', TKEFLK(NPFLKA)
 
-*      WRITE(LUNOUT,*) 'SOBP SOURCE set ekin'
+       END IF
+
 
 
 * Polarization cosines (TXPOL=-2 flag for "no polarization"):
