@@ -1,8 +1,64 @@
 *$ CREATE SOURCE.FOR
 *COPY SOURCE
-*
-* Useful materials on how to prepare user source can be found here:
-* http://www.fluka.org/content/course/NEA/lectures/UserRoutines.pdf
+
+!> @brief
+!! Particle source for pencil beam scanning in hadrontherapy.
+!! It mimics the beam coming out from gantry nozzle and aims
+!! at creating spread-out Bragg peak shape in depth
+!! Simulated source consists of several beamlets,
+!! each of them characterized by relative weight,
+!! energy (at nozzle exit) and spot size (at isocenter).
+!! Additionally energy spread may be specified by the user.
+!! User can also decide whether divergent beam is emitted from
+!! a nozzle plane or point-like virtual source is used.
+!! This source needs an additional file (typically sobp.dat)
+!! with description of pencil beam geometry and kinematics.
+!!
+!! In order to use the source, first compile this file using
+!! following command or Flair GUI:
+!!
+!!  $FLUPRO/flutil/ldpm3qmd source_sampler.f -o flukadpm3_sobp
+!!
+!! Then get a file called sobp.dat and put it in the same directory as
+!! your Fluka input file. In the input file add a card called SOURCE
+!! to activate this custom source. To run it, call (or use Flair):
+!!
+!! rfluka -N0 -M1 -e flukadpm3_sobp your_input_file
+!!
+!!
+!!
+!! @details
+!!
+!! -------------------- SOBP CONFIG FILE -------------------------------------
+!! Input file (typically sobp.dat) is a text file.
+!! Comment lines start with *. It may have 5,6 or 7 columns.
+!! These columns can be:
+!!
+!!  - 5 columns: E, X, Y, FWHM, W
+!!  - 6 columns: E, X, Y, FWHM_X, FWHM_Y, W
+!!  - 7 columns: E, DE, X, Y, FWHM_X, FWHM_Y, W
+!!
+!! where:
+!!
+!!  - E : energy in MeV at the gantry nozzle exit
+!!  - DE : energy spread (sigma) in MeV at the gantry nozzle exit
+!!  - X, Y : position (in cm) of the beamlet/spot center at the isocenter
+!!  - FWHM_X, FWHM_Y, FWHM : spot size (in cm) at the isocenter
+!!
+!! For more details, see SHIELD-HIT12A manual http://shieldhit.org/index.php?id=documentation
+!!
+!!
+!!
+!! -------------------- Beam configuration in INPUT FILE -------------------------------------
+!! Center of the beam spot is usually defined in BEAMPOS card in the input file,
+!! which contains X,Y,Z positions and direction cosines.
+!! Whatever is specified as X,Y and direction cosines will be ignored and overriden
+!! by this custom source
+!!
+!!
+!! For more details, see documentation:
+!!  - BEAM http://www.fluka.org/fluka.php?id=man_onl&sub=12
+!!  - BEAMPOS http://www.fluka.org/fluka.php?id=man_onl&sub=14
 *
 * To compile this code, run:
 * $FLUPRO/flutil/ldpm3qmd source_sampler.f -o flukadpm3_sobp
@@ -77,6 +133,12 @@
       SCATTER = 1.D0/SQRT(3.D0) * THETA0  * X
       RETURN
       END
+
+
+* Useful materials on how to prepare user source can be found here:
+* http://www.fluka.org/content/course/NEA/lectures/UserRoutines.pdf
+
+
 
       SUBROUTINE SOURCE ( NOMORE )
 
