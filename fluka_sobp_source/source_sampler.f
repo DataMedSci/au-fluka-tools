@@ -128,8 +128,8 @@
 !! @param[out] FWHMX beam spot size in X axis, in cm
 !! @param[out] FWHMY beam spot size in Y axis, in cm
 !! @param[out] PART beamlet weight
-!! @param[out] NOCOLUMNS number of columns in the file
-!! @param[out] NWEIGHT number of data rows in the file
+!! @param[out] NOCOLUMNS number of columns in the file, negative if file missing or corrupted
+!! @param[out] NWEIGHT number of data rows in the file, negative if file missing or corrupted
       SUBROUTINE READSOBP ( FILEPATH,
      $   ENERGY, DE, XPOS, YPOS,FWHMX, FWHMY, PART,
      $   NOCOLUMNS, NWEIGHT )
@@ -316,6 +316,12 @@
          CALL READSOBP ( '../sobp.dat', ENERGY,DE,
      $            XPOS, YPOS, FWHMX, FWHMY, PART, NOCOLUMNS, NWEIGHT )
 
+
+*        In case of problem with reading sobp.dat file
+         IF ( (NOCOLUMNS .LE. ZERZER) .OR. (NWEIGHT .LE. ZERZER)) THEN
+            NOMORE = 1
+            RETURN
+         ENDIF
 
 *        In sobp.dat file energy is saved in MeV/amu, while
 *        in Fluka we need it in not per amu, but simply in MeV
@@ -584,7 +590,7 @@
       YFLK(NPFLKA) = YBEAM + YSPOT * RGAUS2
       ZFLK(NPFLKA) = ZBEAM
 
-      *      debugging printouts only if requested by user
+*      debugging printouts only if requested by user
        IF ( WHASOU(2) .NE. 0.0D0 ) THEN
           WRITE(LUNOUT,*) 'SOBP XPOS:', XFLK(NPFLKA), 'cm'
           WRITE(LUNOUT,*) 'SOBP YPOS:', YFLK(NPFLKA), 'cm'
