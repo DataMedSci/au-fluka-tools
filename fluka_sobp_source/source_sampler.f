@@ -42,8 +42,8 @@
 !!
 !! where:
 !!
-!!  - E : kinetic energy in MeV
-!!  - DE : energy spread (sigma) in MeV
+!!  - E : kinetic energy in GeV/amu
+!!  - DE : energy spread (sigma) in GeV/amu
 !!  - X, Y : position (in cm) of the beamlet/spot center
 !!  - FWHM_X, FWHM_Y, FWHM : spot size (in cm)
 !!
@@ -121,8 +121,8 @@
 !> @brief
 !! Reads beam configuration file
 !! @param[in] FILEPATH  path to the beam configuration file
-!! @param[out] ENERGY  particle energy in MeV/amu
-!! @param[out] DE  particle energy spread (sigma) in MeV/amu
+!! @param[out] ENERGY  particle energy in GeV/amu
+!! @param[out] DE  particle energy spread (sigma) in GeV/amu
 !! @param[out] XPOS beam spot center (X coordinate), in cm
 !! @param[out] YPOS beam spot center (Y coordinate), in cm
 !! @param[out] FWHMX beam spot size in X axis, in cm
@@ -323,8 +323,8 @@
             RETURN
          ENDIF
 
-*        In sobp.dat file energy is saved in MeV/amu, while
-*        in Fluka we need it in not per amu, but simply in MeV
+*        In sobp.dat file energy is saved in GeV/amu, while
+*        in Fluka we need it in not per amu, but simply in GeV
 *        To achieve this we multiply energy by mass number A
 *        Fluka doesn't have any consistent method of calculating
 *        mass number (number of nucleons) for simple particles
