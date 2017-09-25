@@ -82,10 +82,6 @@
 !!  - SOURCE  card http://www.fluka.org/fluka.php?id=man_onl&sub=71
 !!
 !! -------------------------------------------------------------------------------------------------
-
-
-!! TODO add sanity check if randomly sampled energy is positive
-
 !! ==================================================================================================
 !! ==================================================================================================
 
@@ -287,6 +283,7 @@
 *
       INTEGER NWEIGHT, NCOLUMNS
       LOGICAL LPNTSRC
+      LOGICAL LENMOMPOS
       DOUBLE PRECISION SRC2SPOT, AIRSCAT
       DOUBLE PRECISION FWHM2SIGMA
 *
@@ -320,22 +317,11 @@
          CALL READSOBP ( '../sobp.dat', ENERGY, DE,
      $            XPOS, YPOS, FWHMX, FWHMY, PART, NCOLUMNS, NWEIGHT )
 
-
 *        In case of problem with reading sobp.dat file
          IF ( (NCOLUMNS .LE. ZERZER) .OR. (NWEIGHT .LE. ZERZER)) THEN
             NOMORE = 1
             RETURN
          ENDIF
-
-*        In sobp.dat file energy is saved in GeV/amu, while
-*        in Fluka we need it in not per amu, but simply in GeV
-*        To achieve this we multiply energy by mass number A
-*        Fluka doesn't have any consistent method of calculating
-*        mass number (number of nucleons) for simple particles
-*        (such as protons and alphas) and heavy ions
-*        we use a method IBARCH to get baryonic charge which
-*        reduces to mass number for particles of interest
-         ENERGY = ENERGY * IBARCH(IONID)
 
 *        First parameter in SOURCE indicates position of virtual source.
 *        If the number is present and non-zero we expect point-like source
@@ -382,7 +368,7 @@
 * must be =0
       NPFLKA = NPFLKA + 1
 * Wt is the weight of the particle
-      WTFLK  (NPFLKA) = PART(NRAN)    ! set new weight
+      WTFLK (NPFLKA) = PART(NRAN)    ! set new weight
       WEIPRI = WEIPRI + WTFLK (NPFLKA)
 * Particle type (1=proton.....). Ijbeam is the type set by the BEAM
 * card
@@ -458,6 +444,17 @@
 *  +-------------------------------------------------------------------*
 *  |  Particle momentum and energy
 
+*      In sobp.dat file energy is saved in GeV/amu, while
+*      in Fluka we need it in not per amu, but simply in GeV
+*      To achieve this we multiply energy by mass number A
+*      Fluka doesn't have any consistent method of calculating
+*      mass number (number of nucleons) for simple particles
+*      (such as protons and alphas) and heavy ions
+*      we use a method IBARCH to get baryonic charge which
+*      reduces to mass number for particles of interest
+       ENERGY(NRAN) = ENERGY(NRAN) * IBARCH(IONID)
+
+
 *  ....................................................................................
 *      Basic equation which relates particle energy and momentum is:
 *
@@ -478,37 +475,70 @@
 *        @   ENERGY(NRAN) - particle kinetic energy, in GeV
 *  ....................................................................................
 *
-*      Lets get a normally distributed random number RGAUSS
-       CALL FLNRRN(RGAUSS)
+*      There is always a small chance that randomly sampled energy or momentum
+*      will get negative (i.e. mean energy 10 MeV with energy spread 8 MeV).
+*      We will sample gaussian distribution in a loop until positive value is obtained
+*
+       LENMOMPOS = .FALSE.
+       DO WHILE ( LENMOMPOS .EQV. .FALSE. )
 
-       IF ( NCOLUMNS .EQ. 7 ) THEN
+          IF ( ENERGY(NRAN) .LE. ZERZER ) THEN
+             WRITE(LUNOUT,*) 'SOBP NEGATIVE EN:', ENERGY(NRAN)
+             NOMORE = 4
+             RETURN
+          END IF
 
-*         In case sobp.dat file has 7 columns, we expect than
-*         energy spread will be there, set as standard deviation
-*         First lets sample gaussian energy distribution.
-*         Mean energy is set to ENERGY(NRAN), value from sobp.dat file
-*         Standard deviation is also taken from sobp.dat file
-          TKEFLK (NPFLKA) = ENERGY(NRAN) + DELTAE(NRAN)*RGAUSS
+*         Lets get a normally distributed random number RGAUSS
+          CALL FLNRRN(RGAUSS)
 
-*         Momentum of the particle, according to eq (4)
-          PMOFLK (NPFLKA) = SQRT ( TKEFLK (NPFLKA)*
-     &     ( TKEFLK (NPFLKA) + TWOTWO * AM (IONID) ))
+          IF ( NCOLUMNS .EQ. 7 ) THEN
 
-       ELSE
+*            In case sobp.dat file has 7 columns, we expect than
+*            energy spread will be there, set as standard deviation
+*            First lets sample gaussian energy distribution.
+*            Mean energy is set to ENERGY(NRAN), value from sobp.dat file
+*            Standard deviation is also taken from sobp.dat file
+             TKEFLK (NPFLKA) = ENERGY(NRAN) + DELTAE(NRAN)*RGAUSS
 
-*         In case energy spread is not provided in sobp.dat file,
-*         we can use a momentum spread from BEAM input card (which by default is set to 0).
-*         Mean momentum is calculated from kinetic energy of the spot, using eq (4)
-*         Standard deviation is obtained from FWHM value set by user in the input card (DPBEAM)
-          PMOFLK (NPFLKA) = SQRT ( ENERGY(NRAN) *
-     &       ( ENERGY(NRAN) + TWOTWO * AM (IONID) ))
-     &       + DPBEAM*RGAUSS/FWHM2SIGMA
+*            Exit the loop if kinetic energy is positive (momentum will also be positive)
+             IF ( TKEFLK (NPFLKA) .GT. ZERZER ) THEN
+                LENMOMPOS = .TRUE.
+             ELSE
+                WRITE(LUNOUT,*) 'KINETIC ENERGY:', TKEFLK (NPFLKA)
+                WRITE(LUNOUT,*) 'RESAMPLING TO GET POSITIVE NUMBER'
+             END IF
+
+*            Momentum of the particle, according to eq (4)
+             PMOFLK (NPFLKA) = SQRT ( TKEFLK (NPFLKA)*
+     &        ( TKEFLK (NPFLKA) + TWOTWO * AM (IONID) ))
+
+          ELSE
+
+*            In case energy spread is not provided in sobp.dat file,
+*            we can use a momentum spread from BEAM input card (which by default is set to 0).
+*            Mean momentum is calculated from kinetic energy of the spot, using eq (4)
+*            Standard deviation is obtained from FWHM value set by user in the input card (DPBEAM)
+             PMOFLK (NPFLKA) = SQRT ( ENERGY(NRAN) *
+     &          ( ENERGY(NRAN) + TWOTWO * AM (IONID) ))
+     &          + DPBEAM*RGAUSS/FWHM2SIGMA
+
+*
+*            Exit the loop if momentum is positive (kinetic energy will also be positive)
+             IF ( PMOFLK (NPFLKA) .GT. ZERZER ) THEN
+                LENMOMPOS = .TRUE.
+             ELSE
+                WRITE(LUNOUT,*) 'MOMENTUM:', PMOFLK (NPFLKA)
+                WRITE(LUNOUT,*) 'RESAMPLING TO GET POSITIVE NUMBER'
+             END IF
+
+*            Kinetic energy of the particle (GeV), according to eq (3)
+             TKEFLK (NPFLKA) = SQRT(PMOFLK(NPFLKA)**2 + AM(IONID)**2)
+     &         -AM(IONID)
 *
 
-*         Kinetic energy of the particle (GeV), according to eq (3)
-          TKEFLK (NPFLKA) = SQRT(PMOFLK(NPFLKA)**2 + AM(IONID)**2)
-     &      -AM(IONID)
-*
+          END IF
+
+       END DO
 
 *      debugging printouts only if requested by user
        IF ( WHASOU(2) .NE. 0.0D0 ) THEN
@@ -517,9 +547,6 @@
           WRITE(LUNOUT,*) 'SOBP SOURCE EKIN', TKEFLK(NPFLKA)
           WRITE(LUNOUT,*) 'SOBP SOURCE MOMENTUM', PMOFLK(NPFLKA)
        ENDIF
-
-
-       END IF
 
 *  +-------------------------------------------------------------------*
 *  |  Direction cosines (tx,ty,tz)
