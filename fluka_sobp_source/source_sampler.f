@@ -69,7 +69,7 @@
 !! It has one optional parameter: WHAT(1), which (if present) will be understood
 !! as the position of the virtual source. We assume virtual source is located on
 !! negative part of Z axis, thus this position is given as single negative number.
-!! Another parameters (so called SDUM) is the filename containing table of numbers
+!! Another parameter (so called SDUM) is the filename containing table of numbers
 !! with beam specification. Typically its called sobp.dat.
 !! An example SOURCE card looks like that:
 !!
@@ -94,23 +94,23 @@
 !! It corresponds to number of columns in CSV file.
 !! @param[in] STRING
 !! @retval LENGTH number of columns
-      INTEGER FUNCTION NOCOLS(ASTRING)
+      INTEGER FUNCTION NCOLS( ASTRING )
       IMPLICIT NONE
       CHARACTER*(*) ASTRING   ! input - string of arbitrary length
       INTEGER I               !
-      NOCOLS = 0
+      NCOLS = 0
 
 *     make a loop and check for non-space followed by space
 *     each occurence will mark end of a column
-      DO I = 1, LEN(ASTRING)-1
-         IF((ASTRING(I:I) .NE. ' ') .AND.
+      DO I = 1, LEN (ASTRING) - 1
+         IF ((ASTRING (I:I) .NE. ' ') .AND.
      & (ASTRING(I+1:I+1) .EQ. ' ')) THEN
-            NOCOLS = NOCOLS + 1
+            NCOLS = NCOLS + 1
          END IF
 
 *     in a special case when last character isn't a space, add another column
-      IF ( ASTRING(LEN(ASTRING):LEN(ASTRING)) .NE. ' ' ) THEN
-        NOCOLS = NOCOLS + 1
+      IF ( ASTRING( LEN(ASTRING):LEN(ASTRING) ) .NE. ' ' ) THEN
+        NCOLS = NCOLS + 1
       END IF
 
       END DO
@@ -132,11 +132,11 @@
 !! @param[out] FWHMX beam spot size in X axis, in cm
 !! @param[out] FWHMY beam spot size in Y axis, in cm
 !! @param[out] PART beamlet weight
-!! @param[out] NOCOLUMNS number of columns in the file, negative if file missing or corrupted
+!! @param[out] NCOLUMNS number of columns in the file, negative if file missing or corrupted
 !! @param[out] NWEIGHT number of data rows in the file, negative if file missing or corrupted
       SUBROUTINE READSOBP ( FILEPATH,
-     $   ENERGY, DE, XPOS, YPOS,FWHMX, FWHMY, PART,
-     $   NOCOLUMNS, NWEIGHT )
+     $   ENERGY, DE, XPOS, YPOS, FWHMX, FWHMY, PART,
+     $   NCOLUMNS, NWEIGHT )
 
       INCLUDE '(DBLPRC)'
       INCLUDE '(DIMPAR)'
@@ -148,20 +148,20 @@
       DOUBLE PRECISION XPOS(65000), YPOS(65000)
       DOUBLE PRECISION FWHMX(65000), FWHMY(65000)
       DOUBLE PRECISION PART(65000)
-      INTEGER NOCOLUMNS
+      INTEGER NCOLUMNS
       LOGICAL LEXISTS
 
       WRITE(LUNOUT,*) 'SOBP SOURCE READING ', FILEPATH
 
 *     warn if sobp.dat file is missing, stop calculation
-      INQUIRE(FILE=FILEPATH,EXIST=LEXISTS)
-      IF(.NOT. LEXISTS) THEN
+      INQUIRE( FILE=FILEPATH, EXIST=LEXISTS )
+      IF ( .NOT. LEXISTS ) THEN
          WRITE(LUNOUT,*) 'SOBP FILE sobp.dat missing'
          RETURN
       END IF
 *
 *     open sobp.dat for reading
-      OPEN(44, FILE=FILEPATH,STATUS='OLD')
+      OPEN( 44, FILE=FILEPATH, STATUS='OLD' )
 *
 *     we will now probe the file to get the number of columns with numbers
 *     we skip comment lines, first non-comment line will be saved to LINE
@@ -174,8 +174,8 @@
 *     WRITE(LUNOUT,*) 'SOBP FIRST LINE', TRIM(LINE)
 *
 *     get number of columns from the first non-comment line
-      NOCOLUMNS = NOCOLS(LINE)
-      WRITE(LUNOUT,*) 'SOBP NUMBER OF COLUMNS', NOCOLUMNS
+      NCOLUMNS = NCOLS(LINE)
+      WRITE(LUNOUT,*) 'SOBP NUMBER OF COLUMNS', NCOLUMNS
 
 
       DO
@@ -193,29 +193,29 @@
          END DO
 
 *        read the line, and guess the format from number of columns
-         IF( NOCOLUMNS .EQ. 5 ) THEN
+         IF ( NCOLUMNS .EQ. 5 ) THEN
 
-            READ(LINE,*,END=10) ENERGY(NWEIGHT),XPOS(NWEIGHT),
-     $         YPOS(NWEIGHT),FWHMX(NWEIGHT),PART(NWEIGHT)
+            READ(LINE,*,END=10) ENERGY(NWEIGHT), XPOS(NWEIGHT),
+     $         YPOS(NWEIGHT), FWHMX(NWEIGHT), PART(NWEIGHT)
             FWHMY = FWHMX
             DELTAE = 0.0D0
 
-         ELSE IF ( NOCOLUMNS .EQ. 6 ) THEN
+         ELSE IF ( NCOLUMNS .EQ. 6 ) THEN
 
-            READ(LINE,*,END=10) ENERGY(NWEIGHT),XPOS(NWEIGHT),
-     $         YPOS(NWEIGHT),FWHMX(NWEIGHT),FWHMY(NWEIGHT),
+            READ(LINE,*,END=10) ENERGY(NWEIGHT), XPOS(NWEIGHT),
+     $         YPOS(NWEIGHT), FWHMX(NWEIGHT), FWHMY(NWEIGHT),
      $         PART(NWEIGHT)
             DELTAE = 0.0D0
 
-         ELSE IF ( NOCOLUMNS .EQ. 7 ) THEN
+         ELSE IF ( NCOLUMNS .EQ. 7 ) THEN
 
             READ(LINE,*,END=10) ENERGY(NWEIGHT), DELTAE(NWEIGHT),
      $         XPOS(NWEIGHT), YPOS(NWEIGHT),
-     $         FWHMX(NWEIGHT),FWHMY(NWEIGHT),
+     $         FWHMX(NWEIGHT), FWHMY(NWEIGHT),
      $         PART(NWEIGHT)
 
          ELSE
-                WRITE(LUNOUT,*) 'SOBP WRONG NO OF COLUMNS',NOCOLUMNS
+                WRITE(LUNOUT,*) 'SOBP WRONG NO OF COLUMNS',NCOLUMNS
                 RETURN
          END IF
 
@@ -285,7 +285,7 @@
       DOUBLE PRECISION FWHMX(65000), FWHMY(65000)
       DOUBLE PRECISION PART(65000)
 *
-      INTEGER NWEIGHT, NOCOLUMNS
+      INTEGER NWEIGHT, NCOLUMNS
       LOGICAL LPNTSRC
       DOUBLE PRECISION SRC2SPOT, AIRSCAT
       DOUBLE PRECISION FWHM2SIGMA
@@ -317,12 +317,12 @@
 *        created in same level as input file
 *        sobp.dat is not copied there,
 *        We reach one level up to get it via ../sobp.dat
-         CALL READSOBP ( '../sobp.dat', ENERGY,DE,
-     $            XPOS, YPOS, FWHMX, FWHMY, PART, NOCOLUMNS, NWEIGHT )
+         CALL READSOBP ( '../sobp.dat', ENERGY, DE,
+     $            XPOS, YPOS, FWHMX, FWHMY, PART, NCOLUMNS, NWEIGHT )
 
 
 *        In case of problem with reading sobp.dat file
-         IF ( (NOCOLUMNS .LE. ZERZER) .OR. (NWEIGHT .LE. ZERZER)) THEN
+         IF ( (NCOLUMNS .LE. ZERZER) .OR. (NWEIGHT .LE. ZERZER)) THEN
             NOMORE = 1
             RETURN
          ENDIF
@@ -481,7 +481,7 @@
 *      Lets get a normally distributed random number RGAUSS
        CALL FLNRRN(RGAUSS)
 
-       IF ( NOCOLUMNS .EQ. 7 ) THEN
+       IF ( NCOLUMNS .EQ. 7 ) THEN
 
 *         In case sobp.dat file has 7 columns, we expect than
 *         energy spread will be there, set as standard deviation
@@ -581,8 +581,8 @@
 
 *     Now we set initial displacement (relative to the spot center)
 *     Starting value -> sigma
-      XSPOT = FWHMX(NRAN)/FWHM2SIGMA
-      YSPOT = FWHMY(NRAN)/FWHM2SIGMA
+      XSPOT = FWHMX(NRAN) / FWHM2SIGMA
+      YSPOT = FWHMY(NRAN) / FWHM2SIGMA
 
 
 *     sample a gaussian position
