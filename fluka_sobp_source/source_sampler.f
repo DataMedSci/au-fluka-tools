@@ -791,37 +791,38 @@
       IMPLICIT NONE
       INTEGER N
       DOUBLE PRECISION CUMW(N), X
-      INTEGER LO, HI, MID
+      INTEGER LO, HI, MID, I, IDX
 
+*     For N <= 1, always return the first (and only) bin
       IF (N .LE. 1) THEN
          CDF_BINSEARCH = 1
          RETURN
       ENDIF
 
-      IF (X .LE. CUMW(1)) THEN
-         CDF_BINSEARCH = 1
-         RETURN
-      ENDIF
-      IF (X .GE. CUMW(N)) THEN
-         CDF_BINSEARCH = N
-         RETURN
+*     Find the first index with CUMW(i) > X (strictly greater)
+      IDX = N
+      DO 20 I = 1, N
+         IF (CUMW(I) .GT. X) THEN
+            IDX = I
+            GOTO 30
+         ENDIF
+  20  CONTINUE
+
+*     If none found (e.g. X >= CUMW(N)), fall back to the last bin
+  30  CONTINUE
+
+*     Avoid mapping into zero-probability plateaus:
+*     move back to the first index where the CDF steps up
+  40  CONTINUE
+      IF (IDX .GT. 1) THEN
+         IF (CUMW(IDX) .EQ. CUMW(IDX-1)) THEN
+            IDX = IDX - 1
+            GOTO 40
+         ENDIF
       ENDIF
 
-      LO = 1
-      HI = N
- 10   CONTINUE
-      IF (HI - LO .LE. 1) THEN
-         CDF_BINSEARCH = HI
-         RETURN
-      ENDIF
-
-      MID = (LO + HI) / 2
-      IF (CUMW(MID) .GE. X) THEN
-         HI = MID
-      ELSE
-         LO = MID
-      ENDIF
-      GOTO 10
+      CDF_BINSEARCH = IDX
+      RETURN
       END
 
 
