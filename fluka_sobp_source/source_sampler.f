@@ -39,8 +39,8 @@
 !!  - 5 columns: E, X, Y, FWHM, W
 !!  - 6 columns: E, X, Y, FWHM_X, FWHM_Y, W
 !!  - 7 columns: E, DE, X, Y, FWHM_X, FWHM_Y, W
-!!  - 9 columns: E, DE, X, Y, FWHM_X, FWHM_Y, EMX, EMY, W
-!!  - 11 columns: E, DE, X, Y, FWHM_X, FWHM_Y, EMX, EMY, CORX, CORY, W
+!!  - 9 columns: E, DE, X, Y, FWHM_X, FWHM_Y, DIVX, DIVY, W
+!!  - 11 columns: E, DE, X, Y, FWHM_X, FWHM_Y, DIVX, DIVY, CORX, CORY, W
 !!
 !! where:
 !!
@@ -48,7 +48,7 @@
 !!  - DE : energy spread (sigma) in GeV/amu
 !!  - X, Y : position (in cm) of the beamlet/spot center
 !!  - FWHM_X, FWHM_Y, FWHM : spot size (in cm)
-!!  - EMX, EMY : angular divergence (in mrad)
+!!  - DIVX, DIVY : angular divergence (in mrad)
 !!  - CORX, CORY : correlation coefficient rho (dimensionless)
 !!
 !! All above-mentioned quantities are defined at beam source location (typically nozzle exit)
@@ -131,8 +131,8 @@
 !! @param[out] YPOS beam spot center (Y coordinate), in cm
 !! @param[out] FWHMX beam spot size in X axis, in cm
 !! @param[out] FWHMY beam spot size in Y axis, in cm
-!! @param[out] EMX beam spot angular divergence in X axis, in mrad
-!! @param[out] EMY beam spot angular divergence in Y axis, in mrad
+!! @param[out] DIVX beam spot angular divergence in X axis, in mrad
+!! @param[out] DIVY beam spot angular divergence in Y axis, in mrad
 !! @param[out] CORX correlation coefficient rho(x,tx) (dimensionless)
 !! @param[out] CORY correlation coefficient rho(y,ty) (dimensionless)
 !! @param[out] PART beamlet weight
@@ -140,7 +140,7 @@
 !! @param[out] NWEIGHT number of data rows in the file, negative if file missing or corrupted
       SUBROUTINE READSOBP ( FILEPATH,
      $   ENERGY, DELTAE, XPOS, YPOS, FWHMX, FWHMY,
-     $   EMX, EMY, CORX, CORY, PART,
+     $   DIVX, DIVY, CORX, CORY, PART,
      $   NCOLUMNS, NWEIGHT )
 
       INCLUDE '(DBLPRC)'
@@ -152,7 +152,7 @@
       DOUBLE PRECISION ENERGY(65000), DELTAE(65000)
       DOUBLE PRECISION XPOS(65000), YPOS(65000)
       DOUBLE PRECISION FWHMX(65000), FWHMY(65000)
-      DOUBLE PRECISION EMX(65000), EMY(65000)
+      DOUBLE PRECISION DIVX(65000), DIVY(65000)
       DOUBLE PRECISION CORX(65000), CORY(65000)
       DOUBLE PRECISION PART(65000)
       INTEGER NCOLUMNS
@@ -208,8 +208,8 @@
      $         YPOS(NWEIGHT), FWHMX(NWEIGHT), PART(NWEIGHT)
             FWHMY(NWEIGHT)  = FWHMX(NWEIGHT)
             DELTAE(NWEIGHT) = 0.0D0
-            EMX(NWEIGHT)    = 0.0D0
-            EMY(NWEIGHT)    = 0.0D0
+            DIVX(NWEIGHT)    = 0.0D0
+            DIVY(NWEIGHT)    = 0.0D0
             CORX(NWEIGHT)   = 0.0D0
             CORY(NWEIGHT)   = 0.0D0
 
@@ -218,8 +218,8 @@
      $         YPOS(NWEIGHT), FWHMX(NWEIGHT), FWHMY(NWEIGHT),
      $         PART(NWEIGHT)
             DELTAE(NWEIGHT) = 0.0D0
-            EMX(NWEIGHT)    = 0.0D0
-            EMY(NWEIGHT)    = 0.0D0
+            DIVX(NWEIGHT)    = 0.0D0
+            DIVY(NWEIGHT)    = 0.0D0
             CORX(NWEIGHT)   = 0.0D0
             CORY(NWEIGHT)   = 0.0D0
 
@@ -228,8 +228,8 @@
      $         XPOS(NWEIGHT), YPOS(NWEIGHT),
      $         FWHMX(NWEIGHT), FWHMY(NWEIGHT),
      $         PART(NWEIGHT)
-            EMX(NWEIGHT)    = 0.0D0
-            EMY(NWEIGHT)    = 0.0D0
+            DIVX(NWEIGHT)    = 0.0D0
+            DIVY(NWEIGHT)    = 0.0D0
             CORX(NWEIGHT)   = 0.0D0
             CORY(NWEIGHT)   = 0.0D0
 
@@ -237,7 +237,7 @@
             READ(LINE,*,END=10) ENERGY(NWEIGHT), DELTAE(NWEIGHT),
      $         XPOS(NWEIGHT), YPOS(NWEIGHT),
      $         FWHMX(NWEIGHT), FWHMY(NWEIGHT),
-     $         EMX(NWEIGHT), EMY(NWEIGHT),
+     $         DIVX(NWEIGHT), DIVY(NWEIGHT),
      $         PART(NWEIGHT)
             CORX(NWEIGHT)   = 0.0D0
             CORY(NWEIGHT)   = 0.0D0
@@ -246,7 +246,7 @@
             READ(LINE,*,END=10) ENERGY(NWEIGHT), DELTAE(NWEIGHT),
      $         XPOS(NWEIGHT), YPOS(NWEIGHT),
      $         FWHMX(NWEIGHT), FWHMY(NWEIGHT),
-     $         EMX(NWEIGHT), EMY(NWEIGHT),
+     $         DIVX(NWEIGHT), DIVY(NWEIGHT),
      $         CORX(NWEIGHT), CORY(NWEIGHT),
      $         PART(NWEIGHT)
 
@@ -319,7 +319,7 @@
       DOUBLE PRECISION ENERGY(65000), DELTAE(65000)
       DOUBLE PRECISION XPOS(65000), YPOS(65000)
       DOUBLE PRECISION FWHMX(65000), FWHMY(65000)
-      DOUBLE PRECISION EMX(65000), EMY(65000)
+      DOUBLE PRECISION DIVX(65000), DIVY(65000)
       DOUBLE PRECISION CORX(65000), CORY(65000)
       DOUBLE PRECISION PART(65000)
 *
@@ -339,9 +339,11 @@
       INTEGER I, NRAN
       DOUBLE PRECISION RW, ES, RAN
 
+      CHARACTER*256 FNAME
+
       SAVE LPNTSRC
       SAVE ENERGY, DELTAE, XPOS, YPOS
-      SAVE FWHMX, FWHMY, EMX, EMY, CORX, CORY, PART
+      SAVE FWHMX, FWHMY, DIVX, DIVY, CORX, CORY, PART
       SAVE NWEIGHT
 *
       LOGICAL LFIRST
@@ -359,17 +361,26 @@
          LUSSRC = .TRUE.
 *  |  *** User initialization ***
 
+* set default file name for sobp.dat if not provided by user in SOURCE card
+         FNAME = TRIM(TITSOU)
+         IF ( FNAME.EQ. '' ) THEN
+             FNAME = 'sobp.dat'
+         END IF
+
          FWHM2SIGMA = 2.0D0 * SQRT( 2.0D0 * LOG(2.0D0))
-         WRITE(LUNOUT,*) 'SOBP SOURCE ZPOS fixed to', ZBEAM
-         WRITE(LUNOUT,*) 'SOBP USER PARAM LIST', WHASOU
+         WRITE(LUNOUT,*) 'SPOTLIST SOURCE ZPOS fixed to', ZBEAM
+         WRITE(LUNOUT,*) 'SPOTLIST USER PARAM LIST', WHASOU
+         WRITE(LUNOUT,*) 'SPOTLIST FNAME', FNAME
+
+         FPATH = '../' // TRIM(FNAME)
 
 *        Fluka run happens in a temporary directory,
 *        created in same level as input file
 *        sobp.dat is not copied there,
 *        We reach one level up to get it via ../sobp.dat
-         CALL READSOBP ( '../sobp.dat', ENERGY, DELTAE,
+         CALL READSOBP ( TRIM(FPATH), ENERGY, DELTAE,
      $            XPOS, YPOS, FWHMX, FWHMY,
-     $            EMX, EMY, CORX, CORY, PART, NCOLUMNS, NWEIGHT )
+     $            DIVX, DIVY, CORX, CORY, PART, NCOLUMNS, NWEIGHT )
 
 *        In case of problem with reading sobp.dat file
          IF ( (NCOLUMNS .LE. ZERZER) .OR. (NWEIGHT .LE. ZERZER)) THEN
@@ -630,30 +641,27 @@
       XSPOT = XPOS(NRAN)
       YSPOT = YPOS(NRAN)
 
-*     Choose the origin of the phase space sampling plane
-*     - point source: sample around (0,0) at nozzle plane
-*     - parallel source: sample around the spot center at nozzle plane
-      IF( LPNTSRC ) THEN
-         XBEAM = 0.0D0
-         YBEAM = 0.0D0
-      ELSE  ! parallel beam
-         XBEAM = XSPOT
-         YBEAM = YSPOT
-      END IF
+*     Sample around the spot center at nozzle plane
+      XBEAM = XSPOT
+      YBEAM = YSPOT
 
 *     Sample (X,Y,TX,TY) in the local frame (mean angles = 0 here)
       CALL SAMPLE_PHASESPACE(
      &   XBEAM, YBEAM, FWHMX(NRAN), FWHMY(NRAN),
-     &   EMX(NRAN),  EMY(NRAN),  CORX(NRAN), CORY(NRAN),
+     &   DIVX(NRAN),  DIVY(NRAN),  CORX(NRAN), CORY(NRAN),
      &   FWHM2SIGMA,
      &   XFLK(NPFLKA), YFLK(NPFLKA),
      &   TXFLK(NPFLKA), TYFLK(NPFLKA) )
 
-*     Apply scanning steering derived from the requested spot position
-      CALL APPLY_SAD_TILT(
-     &   XSPOT, YSPOT,
-     &   SADX, SADY,
-     &   TXFLK(NPFLKA), TYFLK(NPFLKA) )
+
+*     Optional scanning steering (flag-controlled)
+*     WHASOU(1) != 0 -> apply steering; WHASOU(1) == 0 -> no steering
+      IF ( LPNTSRC .NE. 0.0D0 ) THEN
+         CALL APPLY_SAD_TILT(
+     &      XSPOT, YSPOT,
+     &      SADX, SADY,
+     &      TXFLK(NPFLKA), TYFLK(NPFLKA) )
+      ENDIF
 
 *     Renormalize direction
       IF (TXFLK(NPFLKA)**2 + TYFLK(NPFLKA)**2 .GE. 1.0D0) THEN
@@ -696,12 +704,12 @@
 
 
       SUBROUTINE SAMPLE_PHASESPACE(
-     &   X0, Y0, FWHMX, FWHMY, EMX, EMY, CORX, CORY,
+     &   X0, Y0, FWHMX, FWHMY, DIVX, DIVY, CORX, CORY,
      &   FWHM2SIGMA,
      &   X, Y, TX, TY )
 
       IMPLICIT NONE
-      DOUBLE PRECISION X0, Y0, FWHMX, FWHMY, EMX, EMY, CORX, CORY
+      DOUBLE PRECISION X0, Y0, FWHMX, FWHMY, DIVX, DIVY, CORX, CORY
       DOUBLE PRECISION FWHM2SIGMA
       DOUBLE PRECISION X, Y, TX, TY
 
@@ -721,9 +729,9 @@
       IF (SIGX .LT. 0.0D0) SIGX = -SIGX
       IF (SIGY .LT. 0.0D0) SIGY = -SIGY
 
-*     Angular spreads: EMX/EMY are in mrad -> convert to rad
-      SIGTX = EMX * 1.0D-3
-      SIGTY = EMY * 1.0D-3
+*     Angular spreads: DIVX/DIVY are in mrad -> convert to rad
+      SIGTX = DIVX * 1.0D-3
+      SIGTY = DIVY * 1.0D-3
       IF (SIGTX .LT. 0.0D0) SIGTX = -SIGTX
       IF (SIGTY .LT. 0.0D0) SIGTY = -SIGTY
 

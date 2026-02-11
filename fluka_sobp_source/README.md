@@ -9,8 +9,8 @@ A FLUKA user-defined source implementation for simulating pencil beam scanning i
 - **Beam Geometry**: Choice between divergent beam from nozzle plane or point-like virtual source
 - **Configurable Input**: Requires external data file (typically `sobp.dat`) for beam geometry and kinematics
 
-### Compilation
 
+### Compilation
 Compile using the FLUKA utility:
 
 ```bash
@@ -24,3 +24,46 @@ rfluka -N0 -M1 -e flukadpm3_sobp your_input_file
 ```
 
 **Note**: This implementation is based on the template from `$FLUPRO/usermvax/source.f`.
+
+### Invoking
+In the FLUKA input file, you can specify the `SOURCE` card with a few arguments
+```
+*...+....1....+....2....+....3....+....4....+....5....+....6....+....7....+....8
+SOURCE
+```
+- WHAT(1) : Flag for enabling beam with virtual source at SADx and SADy. Default 1.
+- WHAT(2) : Flag for debug info (0 = off, 1 = on)
+- WHAT(3) : SADx - distance from X-scanning magnet to given spotlist plane
+- WHAT(4) : SADy - distance from Y-scanning magnet to given spotlist plane
+- WHAT(5) : (Not used)
+- WHAT(6) : (Not used)
+- TITLE : filename, `sobp.dat` if not set. (max 256 characters long)
+
+### Spotlist format:
+Spotlists can be generated from DICOM `RTPLAN` files together with a suitable beam model.
+We here use the tool [dicomexport](https://github.com/nbassler/dicomexport) to generate the spotlists.
+
+The FLUKA source sampler so far expects a file named `sobp.dat` with either 5,7,9 or 11 columns describing every spot:
+
+```
+5: ENERGY, XPOS, YPOS, FWHMxy, WEIGHT
+6: ENERGY, XPOS, YPOS, FWHMX, FWHMY, WEIGHT
+7: ENERGY, DE, XPOS, YPOS, FWHMX, FWHMY, WEIGHT
+9: ENERGY, DE, XPOS, YPOS, FWHMX, FWHMY, DIVX, DIVY, WEIGHT
+11: ENERGY, DE, XPOS, YPOS, FWHMX, FWHMY, DIVX, DIVY, CORX, CORY, WEIGHT
+```
+
+Where,
+- `ENERGY`  particle energy in GeV/amu
+- `DE`  particle energy spread (sigma) in GeV/amu
+- `XPOS` beam spot center (X coordinate), in cm
+- `YPOS` beam spot center (Y coordinate), in cm
+- `FWHMX` beam spot size in X axis, in cm
+- `FWHMY` beam spot size in Y axis, in cm
+- `DIVX` beam spot angular divergence in X axis, in mrad
+- `DIVY` beam spot angular divergence in Y axis, in mrad
+- `CORX` correlation coefficient rho(x,tx) (dimensionless)
+- `CORY` correlation coefficient rho(y,ty) (dimensionless)
+- `PART` beamlet weight (relative, but recommend to use absolute primary particle numbers here for future features)
+
+Headers with `#` will be skipped.
