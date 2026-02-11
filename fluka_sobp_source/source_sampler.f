@@ -388,12 +388,33 @@
             RETURN
          ENDIF
 
+*        Build cumulative weights only over strictly positive weights
+*        and compact beamlet arrays in-place to exclude zero-weight rows.
+         INTEGER IPOS
+         IPOS = 0
          TOTW = 0.0D0
          DO I = 1, NWEIGHT
             IF (PART(I) .LT. 0.0D0) PART(I) = 0.0D0
-            TOTW = TOTW + PART(I)
-            CUMW(I) = TOTW
+            IF (PART(I) .GT. 0.0D0) THEN
+               IPOS = IPOS + 1
+*              Compact all parameter arrays to keep only positive-weight rows
+               ENERGY(IPOS) = ENERGY(I)
+               DELTAE(IPOS) = DELTAE(I)
+               XPOS(IPOS)   = XPOS(I)
+               YPOS(IPOS)   = YPOS(I)
+               FWHMX(IPOS)  = FWHMX(I)
+               FWHMY(IPOS)  = FWHMY(I)
+               EMX(IPOS)    = EMX(I)
+               EMY(IPOS)    = EMY(I)
+               CORX(IPOS)   = CORX(I)
+               CORY(IPOS)   = CORY(I)
+               PART(IPOS)   = PART(I)
+               TOTW = TOTW + PART(IPOS)
+               CUMW(IPOS) = TOTW
+            END IF
          END DO
+*        Update NWEIGHT to the number of strictly positive-weight rows
+         NWEIGHT = IPOS
 
          IF (TOTW .LE. 0.0D0) THEN
             WRITE(LUNOUT,*) 'SOBP SOURCE ERROR: total weight <= 0'
