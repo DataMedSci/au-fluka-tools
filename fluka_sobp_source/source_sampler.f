@@ -39,6 +39,8 @@
 !!  - 5 columns: E, X, Y, FWHM, W
 !!  - 6 columns: E, X, Y, FWHM_X, FWHM_Y, W
 !!  - 7 columns: E, DE, X, Y, FWHM_X, FWHM_Y, W
+!!  - 9 columns: E, DE, X, Y, FWHM_X, FWHM_Y, EMX, EMY, W
+!!  - 11 columns: E, DE, X, Y, FWHM_X, FWHM_Y, EMX, EMY, CORX, CORY, W
 !!
 !! where:
 !!
@@ -46,6 +48,8 @@
 !!  - DE : energy spread (sigma) in GeV/amu
 !!  - X, Y : position (in cm) of the beamlet/spot center
 !!  - FWHM_X, FWHM_Y, FWHM : spot size (in cm)
+!!  - EMX, EMY : angular divergence (in mrad)
+!!  - CORX, CORY : correlation coefficient rho (dimensionless)
 !!
 !! All above-mentioned quantities are defined at beam source location (typically nozzle exit)
 !!
@@ -127,11 +131,16 @@
 !! @param[out] YPOS beam spot center (Y coordinate), in cm
 !! @param[out] FWHMX beam spot size in X axis, in cm
 !! @param[out] FWHMY beam spot size in Y axis, in cm
+!! @param[out] EMX beam spot angular divergence in X axis, in mrad
+!! @param[out] EMY beam spot angular divergence in Y axis, in mrad
+!! @param[out] CORX correlation between position and angle in X axis, in cm*mrad
+!! @param[out] CORY correlation between position and angle in Y axis, in cm*mrad
 !! @param[out] PART beamlet weight
 !! @param[out] NCOLUMNS number of columns in the file, negative if file missing or corrupted
 !! @param[out] NWEIGHT number of data rows in the file, negative if file missing or corrupted
       SUBROUTINE READSOBP ( FILEPATH,
-     $   ENERGY, DE, XPOS, YPOS, FWHMX, FWHMY, PART,
+     $   ENERGY, DELTAE, XPOS, YPOS, FWHMX, FWHMY,
+     $   EMX, EMY, CORX, CORY, PART,
      $   NCOLUMNS, NWEIGHT )
 
       INCLUDE '(DBLPRC)'
@@ -143,9 +152,14 @@
       DOUBLE PRECISION ENERGY(65000), DELTAE(65000)
       DOUBLE PRECISION XPOS(65000), YPOS(65000)
       DOUBLE PRECISION FWHMX(65000), FWHMY(65000)
+      DOUBLE PRECISION EMX(65000), EMY(65000)
+      DOUBLE PRECISION CORX(65000), CORY(65000)
       DOUBLE PRECISION PART(65000)
       INTEGER NCOLUMNS
       LOGICAL LEXISTS
+
+      NWEIGHT = 0
+      NCOLUMNS = 0
 
       WRITE(LUNOUT,*) 'SOBP SOURCE READING ', FILEPATH
 
@@ -190,29 +204,55 @@
 
 *        read the line, and guess the format from number of columns
          IF ( NCOLUMNS .EQ. 5 ) THEN
-
             READ(LINE,*,END=10) ENERGY(NWEIGHT), XPOS(NWEIGHT),
      $         YPOS(NWEIGHT), FWHMX(NWEIGHT), PART(NWEIGHT)
-            FWHMY = FWHMX
-            DELTAE = 0.0D0
+            FWHMY(NWEIGHT)  = FWHMX(NWEIGHT)
+            DELTAE(NWEIGHT) = 0.0D0
+            EMX(NWEIGHT)    = 0.0D0
+            EMY(NWEIGHT)    = 0.0D0
+            CORX(NWEIGHT)   = 0.0D0
+            CORY(NWEIGHT)   = 0.0D0
 
          ELSE IF ( NCOLUMNS .EQ. 6 ) THEN
-
             READ(LINE,*,END=10) ENERGY(NWEIGHT), XPOS(NWEIGHT),
      $         YPOS(NWEIGHT), FWHMX(NWEIGHT), FWHMY(NWEIGHT),
      $         PART(NWEIGHT)
-            DELTAE = 0.0D0
+            DELTAE(NWEIGHT) = 0.0D0
+            EMX(NWEIGHT)    = 0.0D0
+            EMY(NWEIGHT)    = 0.0D0
+            CORX(NWEIGHT)   = 0.0D0
+            CORY(NWEIGHT)   = 0.0D0
 
          ELSE IF ( NCOLUMNS .EQ. 7 ) THEN
-
             READ(LINE,*,END=10) ENERGY(NWEIGHT), DELTAE(NWEIGHT),
      $         XPOS(NWEIGHT), YPOS(NWEIGHT),
      $         FWHMX(NWEIGHT), FWHMY(NWEIGHT),
      $         PART(NWEIGHT)
+            EMX(NWEIGHT)    = 0.0D0
+            EMY(NWEIGHT)    = 0.0D0
+            CORX(NWEIGHT)   = 0.0D0
+            CORY(NWEIGHT)   = 0.0D0
+
+         ELSE IF ( NCOLUMNS .EQ. 9 ) THEN
+            READ(LINE,*,END=10) ENERGY(NWEIGHT), DELTAE(NWEIGHT),
+     $         XPOS(NWEIGHT), YPOS(NWEIGHT),
+     $         FWHMX(NWEIGHT), FWHMY(NWEIGHT),
+     $         EMX(NWEIGHT), EMY(NWEIGHT),
+     $         PART(NWEIGHT)
+            CORX(NWEIGHT)   = 0.0D0
+            CORY(NWEIGHT)   = 0.0D0
+
+         ELSE IF ( NCOLUMNS .EQ. 11 ) THEN
+            READ(LINE,*,END=10) ENERGY(NWEIGHT), DELTAE(NWEIGHT),
+     $         XPOS(NWEIGHT), YPOS(NWEIGHT),
+     $         FWHMX(NWEIGHT), FWHMY(NWEIGHT),
+     $         EMX(NWEIGHT), EMY(NWEIGHT),
+     $         CORX(NWEIGHT), CORY(NWEIGHT),
+     $         PART(NWEIGHT)
 
          ELSE
-                WRITE(LUNOUT,*) 'SOBP WRONG NO OF COLUMNS',NCOLUMNS
-                RETURN
+            WRITE(LUNOUT,*) 'SOBP WRONG NO OF COLUMNS',NCOLUMNS
+            RETURN
          END IF
 
       ENDDO
@@ -279,20 +319,32 @@
       DOUBLE PRECISION ENERGY(65000), DELTAE(65000)
       DOUBLE PRECISION XPOS(65000), YPOS(65000)
       DOUBLE PRECISION FWHMX(65000), FWHMY(65000)
+      DOUBLE PRECISION EMX(65000), EMY(65000)
+      DOUBLE PRECISION CORX(65000), CORY(65000)
       DOUBLE PRECISION PART(65000)
 *
+      DOUBLE PRECISION CUMW(65000), TOTW
+      SAVE CUMW, TOTW
+
       INTEGER NWEIGHT, NCOLUMNS
+      INTEGER CDF_BINSEARCH
       LOGICAL LPNTSRC
       LOGICAL LENMOMPOS
       DOUBLE PRECISION SRC2SPOT, AIRSCAT
       DOUBLE PRECISION FWHM2SIGMA
+      DOUBLE PRECISION AION, DES
+
 *
+      INTEGER I, NRAN
+      DOUBLE PRECISION RW, ES, RAN
+
+      SAVE LPNTSRC
       SAVE ENERGY, DELTAE, XPOS, YPOS
-      SAVE FWHMX, FWHMY, PART
+      SAVE FWHMX, FWHMY, EMX, EMY, CORX, CORY, PART
       SAVE NWEIGHT
 *
       LOGICAL LFIRST
-*
+
       SAVE LFIRST
       DATA LFIRST / .TRUE. /
 *
@@ -314,14 +366,28 @@
 *        created in same level as input file
 *        sobp.dat is not copied there,
 *        We reach one level up to get it via ../sobp.dat
-         CALL READSOBP ( '../sobp.dat', ENERGY, DE,
-     $            XPOS, YPOS, FWHMX, FWHMY, PART, NCOLUMNS, NWEIGHT )
+         CALL READSOBP ( '../sobp.dat', ENERGY, DELTAE,
+     $            XPOS, YPOS, FWHMX, FWHMY,
+     $            EMX, EMY, CORX, CORY, PART, NCOLUMNS, NWEIGHT )
 
 *        In case of problem with reading sobp.dat file
          IF ( (NCOLUMNS .LE. ZERZER) .OR. (NWEIGHT .LE. ZERZER)) THEN
             NOMORE = 1
             RETURN
          ENDIF
+
+         TOTW = 0.0D0
+         DO I = 1, NWEIGHT
+            IF (PART(I) .LT. 0.0D0) PART(I) = 0.0D0
+            TOTW = TOTW + PART(I)
+            CUMW(I) = TOTW
+         END DO
+
+         IF (TOTW .LE. 0.0D0) THEN
+            WRITE(LUNOUT,*) 'SOBP SOURCE ERROR: total weight <= 0'
+            NOMORE = 1
+            RETURN
+         END IF
 
 *        First parameter in SOURCE indicates position of virtual source.
 *        If the number is present and non-zero we expect point-like source
@@ -344,13 +410,9 @@
 *     Get a 64-bit pseudo random number in the interval [0.D+00,1.D+00),
 *     1 being not included
       RAN = FLRNDM(111)
+      RW  = RAN * TOTW
 
-*     Now an integer random number, from the 1 to NWEIGHT,
-*     needed to select random line from sobp config file
-*     http://infohost.nmt.edu/tcc/help/lang/fortran/scaling.html
-*     If you want an integer between i and j inclusive
-*     use int(rand(0)*(j+1-i))+i
-      NRAN = INT(RAN * NWEIGHT) + 1
+      NRAN = CDF_BINSEARCH( CUMW, NWEIGHT, RW )
 
 *     check if random number selected properly
       IF ((NRAN .GT. NWEIGHT) .OR. (NRAN .LT. 1)) THEN
@@ -368,7 +430,7 @@
 * must be =0
       NPFLKA = NPFLKA + 1
 * Wt is the weight of the particle
-      WTFLK (NPFLKA) = PART(NRAN)    ! set new weight
+      WTFLK (NPFLKA) = 1.0D0   ! particles where already sampled per weight.
       WEIPRI = WEIPRI + WTFLK (NPFLKA)
 * Particle type (1=proton.....). Ijbeam is the type set by the BEAM
 * card
@@ -444,16 +506,18 @@
 *  +-------------------------------------------------------------------*
 *  |  Particle momentum and energy
 
-*      In sobp.dat file energy is saved in GeV/amu, while
-*      in Fluka we need it in not per amu, but simply in GeV
+*      In sobp.dat file energy is saved in GeV/nucleon, while
+*      in Fluka we need it in not per nucleon, but simply in GeV
 *      To achieve this we multiply energy by mass number A
 *      Fluka doesn't have any consistent method of calculating
 *      mass number (number of nucleons) for simple particles
 *      (such as protons and alphas) and heavy ions
 *      we use a method IBARCH to get baryonic charge which
 *      reduces to mass number for particles of interest
-       ENERGY(NRAN) = ENERGY(NRAN) * IBARCH(IONID)
-
+        AION = DBLE( IBARCH(IONID) )
+        ES   = ENERGY(NRAN)  * AION
+        DES  = DELTAE(NRAN)  * AION
+        IF (DES .LT. 0.0D0) DES = 0.0D0
 
 *  ....................................................................................
 *      Basic equation which relates particle energy and momentum is:
@@ -482,8 +546,8 @@
        LENMOMPOS = .FALSE.
        DO WHILE ( LENMOMPOS .EQV. .FALSE. )
 
-          IF ( ENERGY(NRAN) .LE. ZERZER ) THEN
-             WRITE(LUNOUT,*) 'SOBP NEGATIVE EN:', ENERGY(NRAN)
+          IF ( ES .LE. ZERZER ) THEN
+             WRITE(LUNOUT,*) 'SOBP NEGATIVE EN:', ES
              NOMORE = 4
              RETURN
           END IF
@@ -491,14 +555,14 @@
 *         Lets get a normally distributed random number RGAUSS
           CALL FLNRRN(RGAUSS)
 
-          IF ( NCOLUMNS .EQ. 7 ) THEN
+          IF ( NCOLUMNS .GE. 7 ) THEN
 
 *            In case sobp.dat file has 7 columns, we expect than
 *            energy spread will be there, set as standard deviation
 *            First lets sample gaussian energy distribution.
-*            Mean energy is set to ENERGY(NRAN), value from sobp.dat file
+*            Mean energy is set to ES, value from sobp.dat file
 *            Standard deviation is also taken from sobp.dat file
-             TKEFLK (NPFLKA) = ENERGY(NRAN) + DELTAE(NRAN)*RGAUSS
+             TKEFLK (NPFLKA) = ES + DES * RGAUSS
 
 *            Exit the loop if kinetic energy is positive (momentum will also be positive)
              IF ( TKEFLK (NPFLKA) .GT. ZERZER ) THEN
@@ -518,8 +582,8 @@
 *            we can use a momentum spread from BEAM input card (which by default is set to 0).
 *            Mean momentum is calculated from kinetic energy of the spot, using eq (4)
 *            Standard deviation is obtained from FWHM value set by user in the input card (DPBEAM)
-             PMOFLK (NPFLKA) = SQRT ( ENERGY(NRAN) *
-     &          ( ENERGY(NRAN) + TWOTWO * AM (IONID) ))
+             PMOFLK (NPFLKA) = SQRT ( ES *
+     &          ( ES + TWOTWO * AM (IONID) ))
      &          + DPBEAM*RGAUSS/FWHM2SIGMA
 
 *
@@ -542,7 +606,7 @@
 
 *      debugging printouts only if requested by user
        IF ( WHASOU(2) .NE. 0.0D0 ) THEN
-          WRITE(LUNOUT,*) 'SOBP E:', 1.D3*ENERGY(NRAN), 'MeV/amu'
+          WRITE(LUNOUT,*) 'SOBP E:', 1.D3*ES / AION, 'MeV/nucleon'
           WRITE(LUNOUT,*) 'SOBP Z:', ZBEAM, 'cm'
           WRITE(LUNOUT,*) 'SOBP SOURCE EKIN', TKEFLK(NPFLKA)
           WRITE(LUNOUT,*) 'SOBP SOURCE MOMENTUM', PMOFLK(NPFLKA)
@@ -659,4 +723,42 @@
       CALL SOEVSV
       RETURN
 *=== End of subroutine Source =========================================*
+      END
+
+
+      INTEGER FUNCTION CDF_BINSEARCH( CUMW, N, X )
+      IMPLICIT NONE
+      INTEGER N
+      DOUBLE PRECISION CUMW(N), X
+      INTEGER LO, HI, MID
+
+      IF (N .LE. 1) THEN
+         CDF_BINSEARCH = 1
+         RETURN
+      ENDIF
+
+      IF (X .LE. CUMW(1)) THEN
+         CDF_BINSEARCH = 1
+         RETURN
+      ENDIF
+      IF (X .GE. CUMW(N)) THEN
+         CDF_BINSEARCH = N
+         RETURN
+      ENDIF
+
+      LO = 1
+      HI = N
+ 10   CONTINUE
+      IF (HI - LO .LE. 1) THEN
+         CDF_BINSEARCH = HI
+         RETURN
+      ENDIF
+
+      MID = (LO + HI) / 2
+      IF (CUMW(MID) .GE. X) THEN
+         HI = MID
+      ELSE
+         LO = MID
+      ENDIF
+      GOTO 10
       END
