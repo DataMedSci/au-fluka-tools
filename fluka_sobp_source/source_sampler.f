@@ -303,7 +303,7 @@
 *              Nomore = if > 0 the run will be terminated              *
 *                                                                      *
 *----------------------------------------------------------------------*
-*
+
       INCLUDE '(BEAMCM)'
       INCLUDE '(FHEAVY)'
       INCLUDE '(FLKSTK)'
@@ -334,6 +334,7 @@
       DOUBLE PRECISION FWHM2SIGMA
       DOUBLE PRECISION AION, DES
       DOUBLE PRECISION XSPOT, YSPOT
+      DOUBLE PRECISION SADX, SADY
 *
       INTEGER I, NRAN
       DOUBLE PRECISION RW, ES, RAN
@@ -420,6 +421,11 @@
          NOMORE = 3
          RETURN
       END IF
+
+
+* get SADX and SADY from the input file, they are needed to apply scanning steering
+      SADX = WHASOU(3)
+      SADY = WHASOU(4)
 
 
 *  +-------------------------------------------------------------------*
@@ -630,7 +636,7 @@
       IF( LPNTSRC ) THEN
          XBEAM = 0.0D0
          YBEAM = 0.0D0
-      ELSE
+      ELSE  ! parallel beam
          XBEAM = XSPOT
          YBEAM = YSPOT
       END IF
@@ -646,7 +652,7 @@
 *     Apply scanning steering derived from the requested spot position
       CALL APPLY_SAD_TILT(
      &   XSPOT, YSPOT,
-     &   WHASOU(3), WHASOU(4),
+     &   SADX, SADY,
      &   TXFLK(NPFLKA), TYFLK(NPFLKA) )
 
 *     Renormalize direction
