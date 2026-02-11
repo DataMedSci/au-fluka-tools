@@ -447,7 +447,7 @@
 * must be =0
       NPFLKA = NPFLKA + 1
 * Wt is the weight of the particle
-      WTFLK (NPFLKA) = 1.0D0   ! particles where already sampled per weight.
+      WTFLK (NPFLKA) = 1.0D0   ! particles were already sampled per weight.
       WEIPRI = WEIPRI + WTFLK (NPFLKA)
 * Particle type (1=proton.....). Ijbeam is the type set by the BEAM
 * card
