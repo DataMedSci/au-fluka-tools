@@ -133,8 +133,8 @@
 !! @param[out] FWHMY beam spot size in Y axis, in cm
 !! @param[out] EMX beam spot angular divergence in X axis, in mrad
 !! @param[out] EMY beam spot angular divergence in Y axis, in mrad
-!! @param[out] CORX correlation between position and angle in X axis, in cm*mrad
-!! @param[out] CORY correlation between position and angle in Y axis, in cm*mrad
+!! @param[out] CORX correlation coefficient rho(x,tx) (dimensionless)
+!! @param[out] CORY correlation coefficient rho(y,ty) (dimensionless)
 !! @param[out] PART beamlet weight
 !! @param[out] NCOLUMNS number of columns in the file, negative if file missing or corrupted
 !! @param[out] NWEIGHT number of data rows in the file, negative if file missing or corrupted
@@ -333,7 +333,7 @@
       DOUBLE PRECISION SRC2SPOT, AIRSCAT
       DOUBLE PRECISION FWHM2SIGMA
       DOUBLE PRECISION AION, DES
-
+      DOUBLE PRECISION XSPOT, YSPOT
 *
       INTEGER I, NRAN
       DOUBLE PRECISION RW, ES, RAN
@@ -613,88 +613,51 @@
        ENDIF
 
 *  +-------------------------------------------------------------------*
-*  |  Direction cosines (tx,ty,tz)
-
-      IF( LPNTSRC ) THEN
-
-*        calculate distance from virtual beam source to the center of spot position
-         SRC2SPOT = SQRT(ZBEAM*ZBEAM
-     &       + XPOS(NRAN)*XPOS(NRAN)
-     &       + YPOS(NRAN)*YPOS(NRAN))
-
-*        we use a vector from virtual source to the spot center
-*        to calculate direction cosines
-         TXFLK  (NPFLKA) = XPOS(NRAN) / SRC2SPOT
-         TYFLK  (NPFLKA) = YPOS(NRAN) / SRC2SPOT
-
-      ELSE
-
-*        parallel beam, direction cosines are (0,0,1)
-         TXFLK  (NPFLKA) = ZERZER
-         TYFLK  (NPFLKA) = ZERZER
-
-      END IF
-
-*     to ensure proper normalization last cosine (tz) is calculated
-*     from the first two (tx, ty)
-      TZFLK  (NPFLKA) = SQRT ( ONEONE - TXFLK (NPFLKA)**2
-     &                       - TYFLK (NPFLKA)**2 )
-
-*      debugging printouts only if requested by user
-       IF ( WHASOU(2) .NE. 0.0D0 ) THEN
-          WRITE(LUNOUT,*) 'SOBP SOURCE cosine X', TXFLK  (NPFLKA)
-          WRITE(LUNOUT,*) 'SOBP SOURCE cosine Y', TYFLK  (NPFLKA)
-          WRITE(LUNOUT,*) 'SOBP SOURCE cosine Z', TZFLK  (NPFLKA)
-       ENDIF
-
-
-*  +-------------------------------------------------------------------*
 *  |  Polarization cosines (TXPOL=-2 flag for "no polarization"):
 
       TXPOL  (NPFLKA) = -TWOTWO
       TYPOL  (NPFLKA) = +ZERZER
       TZPOL  (NPFLKA) = +ZERZER
 
-*  +-------------------------------------------------------------------*
-*  |  Particle coordinates
+*  *  +-------------------------------------------------------------------*
+*  |  Particle coordinates + phase space (local beam frame)
+      XSPOT = XPOS(NRAN)
+      YSPOT = YPOS(NRAN)
 
-*     First goes point like source. Source is located at (0,0,ZBEAM)
-*     whatever user provides as XBEAM and YBEAM is overridden with zeros
+*     Choose the origin of the phase space sampling plane
+*     - point source: sample around (0,0) at nozzle plane
+*     - parallel source: sample around the spot center at nozzle plane
       IF( LPNTSRC ) THEN
-        XBEAM = 0.0D0
-        YBEAM = 0.0D0
-*     Second goes parallel source. Whatever user provides as XBEAM and YBEAM is overriden.
-*     For each spot center os spot positions goes to XBEAM and YBEAM.
+         XBEAM = 0.0D0
+         YBEAM = 0.0D0
       ELSE
-        XBEAM = XPOS(NRAN)
-        YBEAM = YPOS(NRAN)
+         XBEAM = XSPOT
+         YBEAM = YSPOT
       END IF
 
-*     Now we set initial displacement (relative to the spot center)
-*     Starting value -> sigma
-      XSPOT = FWHMX(NRAN) / FWHM2SIGMA
-      YSPOT = FWHMY(NRAN) / FWHM2SIGMA
+*     Sample (X,Y,TX,TY) in the local frame (mean angles = 0 here)
+      CALL SAMPLE_PHASESPACE(
+     &   XBEAM, YBEAM, FWHMX(NRAN), FWHMY(NRAN),
+     &   EMX(NRAN),  EMY(NRAN),  CORX(NRAN), CORY(NRAN),
+     &   FWHM2SIGMA,
+     &   XFLK(NPFLKA), YFLK(NPFLKA),
+     &   TXFLK(NPFLKA), TYFLK(NPFLKA) )
 
+*     Apply scanning steering derived from the requested spot position
+      CALL APPLY_SAD_TILT(
+     &   XSPOT, YSPOT,
+     &   WHASOU(3), WHASOU(4),
+     &   TXFLK(NPFLKA), TYFLK(NPFLKA) )
 
-*     sample a gaussian position
-      CALL FLNRR2 (RGAUS1, RGAUS2)
+*     Renormalize direction
+      IF (TXFLK(NPFLKA)**2 + TYFLK(NPFLKA)**2 .GE. 1.0D0) THEN
+         TXFLK(NPFLKA) = 0.0D0
+         TYFLK(NPFLKA) = 0.0D0
+      ENDIF
+      TZFLK(NPFLKA) = SQRT(1.0D0
+     &   - TXFLK(NPFLKA)**2 - TYFLK(NPFLKA)**2 )
 
-*     use center position and displacement multiplied by a
-*     random number sampled from gaussian distribution N(0,1)
-      XFLK(NPFLKA) = XBEAM + XSPOT * RGAUS1
-      YFLK(NPFLKA) = YBEAM + YSPOT * RGAUS2
       ZFLK(NPFLKA) = ZBEAM
-
-*      debugging printouts only if requested by user
-       IF ( WHASOU(2) .NE. 0.0D0 ) THEN
-          WRITE(LUNOUT,*) 'SOBP XPOS:', XFLK(NPFLKA), 'cm'
-          WRITE(LUNOUT,*) 'SOBP YPOS:', YFLK(NPFLKA), 'cm'
-       ENDIF
-
-
-
-*  +-------------------------------------------------------------------*
-*  +-------------------------------------------------------------------*
 
 
 *  Calculate the total kinetic energy of the primaries: don't change
@@ -724,6 +687,90 @@
       RETURN
 *=== End of subroutine Source =========================================*
       END
+
+
+      SUBROUTINE SAMPLE_PHASESPACE(
+     &   X0, Y0, FWHMX, FWHMY, EMX, EMY, CORX, CORY,
+     &   FWHM2SIGMA,
+     &   X, Y, TX, TY )
+
+      IMPLICIT NONE
+      DOUBLE PRECISION X0, Y0, FWHMX, FWHMY, EMX, EMY, CORX, CORY
+      DOUBLE PRECISION FWHM2SIGMA
+      DOUBLE PRECISION X, Y, TX, TY
+
+      DOUBLE PRECISION SIGX, SIGY, SIGTX, SIGTY
+      DOUBLE PRECISION RHOX, RHOY, COVX, COVY
+      DOUBLE PRECISION G1, G2, G3, G4
+      DOUBLE PRECISION DX, DY, DTX, DTY
+      DOUBLE PRECISION VARX, VARY
+
+*     Convert spot size FWHM -> sigma (cm)
+      SIGX = 0.0D0
+      SIGY = 0.0D0
+      IF (FWHM2SIGMA .GT. 0.0D0) THEN
+         SIGX = FWHMX / FWHM2SIGMA
+         SIGY = FWHMY / FWHM2SIGMA
+      ENDIF
+      IF (SIGX .LT. 0.0D0) SIGX = -SIGX
+      IF (SIGY .LT. 0.0D0) SIGY = -SIGY
+
+*     Angular spreads: EMX/EMY are in mrad -> convert to rad
+      SIGTX = EMX * 1.0D-3
+      SIGTY = EMY * 1.0D-3
+      IF (SIGTX .LT. 0.0D0) SIGTX = -SIGTX
+      IF (SIGTY .LT. 0.0D0) SIGTY = -SIGTY
+
+*     CORX/CORY are correlation coefficients rho in [-1,1]
+      RHOX = CORX
+      RHOY = CORY
+
+*     Clamp rho for numerical safety
+      IF (RHOX .GT.  0.999999D0) RHOX =  0.999999D0
+      IF (RHOX .LT. -0.999999D0) RHOX = -0.999999D0
+      IF (RHOY .GT.  0.999999D0) RHOY =  0.999999D0
+      IF (RHOY .LT. -0.999999D0) RHOY = -0.999999D0
+
+*     Convert correlation -> covariance (cm*rad)
+      COVX = RHOX * SIGX * SIGTX
+      COVY = RHOY * SIGY * SIGTY
+
+*     Draw 4 independent standard normals
+      CALL FLNRR2(G1, G2)
+      CALL FLNRR2(G3, G4)
+
+*     X-plane: correlated (DX, DTX)
+      DX = SIGX * G1
+
+      IF (SIGX .GT. 0.0D0) THEN
+         VARX = SIGTX*SIGTX - (COVX*COVX)/(SIGX*SIGX)
+         IF (VARX .LT. 0.0D0) VARX = 0.0D0
+         DTX = (COVX / SIGX) * G1 + SQRT(VARX) * G2
+      ELSE
+*        if SIGX=0, correlation is meaningless -> just angle spread
+         DTX = SIGTX * G2
+      ENDIF
+
+*     Y-plane: correlated (DY, DTY)
+      DY = SIGY * G3
+
+      IF (SIGY .GT. 0.0D0) THEN
+         VARY = SIGTY*SIGTY - (COVY*COVY)/(SIGY*SIGY)
+         IF (VARY .LT. 0.0D0) VARY = 0.0D0
+         DTY = (COVY / SIGY) * G3 + SQRT(VARY) * G4
+      ELSE
+         DTY = SIGTY * G4
+      ENDIF
+
+*     Apply to particle (local frame, mean angles = 0)
+      X  = X0 + DX
+      Y  = Y0 + DY
+      TX = DTX
+      TY = DTY
+
+      RETURN
+      END
+
 
 
       INTEGER FUNCTION CDF_BINSEARCH( CUMW, N, X )
@@ -761,4 +808,17 @@
          LO = MID
       ENDIF
       GOTO 10
+      END
+
+
+      SUBROUTINE APPLY_SAD_TILT(XC, YC, SADX, SADY, TX, TY)
+      IMPLICIT NONE
+      DOUBLE PRECISION XC, YC, SADX, SADY, TX, TY
+
+*     Add mean angles so that the ray through (XC,YC) points to isocenter
+*     (sign convention: for +XC, beam needs -TX to aim back to axis)
+      IF (SADX .GT. 0.0D0) TX = TX - XC / SADX
+      IF (SADY .GT. 0.0D0) TY = TY - YC / SADY
+
+      RETURN
       END
