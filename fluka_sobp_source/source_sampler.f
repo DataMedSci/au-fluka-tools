@@ -33,7 +33,7 @@
 !!
 !! -------------------- SOBP CONFIG FILE -------------------------------------
 !! Input file (typically sobp.dat) is a text file.
-!! Comment lines start with *. It may have 5,6 or 7 columns.
+!! Comment lines start with #. It may have 5,6,7,9 or 11 columns.
 !! These columns can be:
 !!
 !!  - 5 columns: E, X, Y, FWHM, W
@@ -70,14 +70,13 @@
 !! by this custom source. SDUM value in BEAMPOS card will also be ignored.
 !!
 !! In order to activate this custom source, please add SOURCE card to the input file.
-!! It has one optional parameter: WHAT(1), which (if present) will be understood
-!! as the position of the virtual source. We assume virtual source is located on
-!! negative part of Z axis, thus this position is given as single negative number.
-!! Another parameter (so called SDUM) is the filename containing table of numbers
-!! with beam specification. Typically its called sobp.dat.
+!! WHAT(1), if nonzero, enables virtual-source geometry using SADx and SADy
+!! from WHAT(3) and WHAT(4). If WHAT(1) is zero or omitted, this mode is off.
+!! The SOURCE card SDUM is the filename containing the spotlist. If SDUM is
+!! omitted, this routine reads sobp.dat.
 !! An example SOURCE card looks like that:
 !!
-!! SOURCE           -205.0                                                sobp.dat
+!! SOURCE             1.0       0.0     205.0     205.0                  sobp.dat
 !!
 !!
 !! For more details, see FLUKA documentation:
@@ -164,14 +163,14 @@
 
       WRITE(LUNOUT,*) 'SOBP SOURCE READING ', FILEPATH
 
-*     warn if sobp.dat file is missing, stop calculation
+*     warn if the spotlist file is missing, stop calculation
       INQUIRE( FILE=FILEPATH, EXIST=LEXISTS )
       IF ( .NOT. LEXISTS ) THEN
-         WRITE(LUNOUT,*) 'SOBP FILE sobp.dat missing'
+         WRITE(LUNOUT,*) 'SOBP FILE missing: ', FILEPATH
          RETURN
       END IF
 *
-*     open sobp.dat for reading
+*     open spotlist file for reading
       OPEN( 44, FILE=FILEPATH, STATUS='OLD' )
 *
 *     we will now probe the file to get the number of columns with numbers
@@ -423,10 +422,19 @@
             RETURN
          END IF
 
-*        First parameter in SOURCE indicates position of virtual source.
+*        First parameter in SOURCE enables virtual-source geometry.
 *        If the number is present and non-zero we expect point-like source
+         SADX = WHASOU(3)
+         SADY = WHASOU(4)
          IF ( WHASOU(1) .NE. 0.0D0 ) THEN
             WRITE(LUNOUT,*) 'SOBP POINT-LIKE VIRTUAL SOURCE'
+            IF ( SADX .LE. 0.0D0 .OR. SADY .LE. 0.0D0 ) THEN
+               WRITE(LUNOUT,*) 'SOBP SOURCE ERROR: point-like source'
+               WRITE(LUNOUT,*) 'requires positive SADx and SADy, got',
+     &            SADX, SADY
+               NOMORE = 6
+               RETURN
+            END IF
             LPNTSRC = .TRUE.
          ELSE
             WRITE(LUNOUT,*) 'SOBP PARALLEL VIRTUAL SOURCE'
@@ -454,12 +462,6 @@
          NOMORE = 3
          RETURN
       END IF
-
-
-* get SADX and SADY from the input file, they are needed to apply scanning steering
-      SADX = WHASOU(3)
-      SADY = WHASOU(4)
-
 
 *  +-------------------------------------------------------------------*
 *  Push one source particle to the stack. Note that you could as well
@@ -816,7 +818,7 @@
       IMPLICIT NONE
       INTEGER N
       DOUBLE PRECISION CUMW(N), X
-      INTEGER I, IDX
+      INTEGER LO, HI, MID
 
 *     For N <= 1, always return the first (and only) bin
       IF (N .LE. 1) THEN
@@ -824,29 +826,20 @@
          RETURN
       ENDIF
 
-*     Find the first index with CUMW(i) > X (strictly greater)
-      IDX = N
-      DO 20 I = 1, N
-         IF (CUMW(I) .GT. X) THEN
-            IDX = I
-            GOTO 30
+*     Find the first index with CUMW(i) > X (strictly greater).
+*     This is a binary search over the monotonic cumulative weights.
+      LO = 1
+      HI = N
+      DO WHILE (LO .LT. HI)
+         MID = (LO + HI) / 2
+         IF (CUMW(MID) .GT. X) THEN
+            HI = MID
+         ELSE
+            LO = MID + 1
          ENDIF
-  20  CONTINUE
+      END DO
 
-*     If none found (e.g. X >= CUMW(N)), fall back to the last bin
-  30  CONTINUE
-
-*     Avoid mapping into zero-probability plateaus:
-*     move back to the first index where the CDF steps up
-  40  CONTINUE
-      IF (IDX .GT. 1) THEN
-         IF (CUMW(IDX) .EQ. CUMW(IDX-1)) THEN
-            IDX = IDX - 1
-            GOTO 40
-         ENDIF
-      ENDIF
-
-      CDF_BINSEARCH = IDX
+      CDF_BINSEARCH = LO
       RETURN
       END
 
