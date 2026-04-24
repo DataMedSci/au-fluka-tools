@@ -126,7 +126,7 @@
 !! Reads beam configuration file
 !! @param[in] FILEPATH  path to the beam configuration file
 !! @param[out] ENERGY  particle energy in GeV/nucleon
-!! @param[out] DE  particle energy spread (sigma) in GeV/nucleon
+!! @param[out] DELTAE  particle energy spread (sigma) in GeV/nucleon
 !! @param[out] XPOS beam spot center (X coordinate), in cm
 !! @param[out] YPOS beam spot center (Y coordinate), in cm
 !! @param[out] FWHMX beam spot size in X axis, in cm
