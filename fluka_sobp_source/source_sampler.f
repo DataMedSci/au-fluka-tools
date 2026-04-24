@@ -19,13 +19,13 @@
 !! In order to use the source, first compile this file using
 !! following command or Flair GUI:
 !!
-!!  $FLUPRO/flutil/ldpm3qmd source_sampler.f -o flukadpm3_sobp
+!!  ldpmqmd -oflukadpm_sobp source_sampler.f
 !!
 !! Then get a file called sobp.dat and put it in the same directory as
 !! your Fluka input file. In the input file add a card called SOURCE
 !! to activate this custom source. To run it, call (or use Flair):
 !!
-!! rfluka -N0 -M1 -e flukadpm3_sobp your_input_file
+!! rfluka -N0 -M1 -e flukadpm_sobp your_input_file
 !!
 !!
 !!
@@ -44,8 +44,8 @@
 !!
 !! where:
 !!
-!!  - E : kinetic energy in GeV/amu
-!!  - DE : energy spread (sigma) in GeV/amu
+!!  - E : kinetic energy in GeV/nucleon
+!!  - DE : energy spread (sigma) in GeV/nucleon
 !!  - X, Y : position (in cm) of the beamlet/spot center
 !!  - FWHM_X, FWHM_Y, FWHM : spot size (in cm)
 !!  - DIVX, DIVY : angular divergence (in mrad)
@@ -125,8 +125,8 @@
 !> @brief
 !! Reads beam configuration file
 !! @param[in] FILEPATH  path to the beam configuration file
-!! @param[out] ENERGY  particle energy in GeV/amu
-!! @param[out] DE  particle energy spread (sigma) in GeV/amu
+!! @param[out] ENERGY  particle energy in GeV/nucleon
+!! @param[out] DE  particle energy spread (sigma) in GeV/nucleon
 !! @param[out] XPOS beam spot center (X coordinate), in cm
 !! @param[out] YPOS beam spot center (Y coordinate), in cm
 !! @param[out] FWHMX beam spot size in X axis, in cm
@@ -143,9 +143,9 @@
      $   DIVX, DIVY, CORX, CORY, PART,
      $   NCOLUMNS, NWEIGHT )
 
-      INCLUDE '(DBLPRC)'
-      INCLUDE '(DIMPAR)'
-      INCLUDE '(IOUNIT)'
+      INCLUDE 'dblprc.inc'
+      INCLUDE 'dimpar.inc'
+      INCLUDE 'iounit.inc'
 
       CHARACTER*(*) FILEPATH   ! path to the sobp file
       CHARACTER(8192) LINE
@@ -156,6 +156,7 @@
       DOUBLE PRECISION CORX(65000), CORY(65000)
       DOUBLE PRECISION PART(65000)
       INTEGER NCOLUMNS
+      INTEGER NWEIGHT
       LOGICAL LEXISTS
 
       NWEIGHT = 0
@@ -176,8 +177,8 @@
 *     we will now probe the file to get the number of columns with numbers
 *     we skip comment lines, first non-comment line will be saved to LINE
 *     later we rewind the file to the beginning and read it with proper column format
-      LINE(1:1) = '*'
-      DO WHILE( LINE(1:1) .EQ. '*' )
+      LINE(1:1) = '#'
+      DO WHILE( LINE(1:1) .EQ. '#' )
          READ(44,'(A)',END=10) LINE
       END DO
       REWIND(44)
@@ -197,8 +198,8 @@
          ENDIF
 
 *        skip comment lines, first non-comment line will be saved to LINE
-         LINE(1:1) = '*'
-         DO WHILE( LINE(1:1) .EQ. '*' )
+         LINE(1:1) = '#'
+         DO WHILE( LINE(1:1) .EQ. '#' )
             READ(44,'(A)',END=10) LINE
          END DO
 
@@ -273,9 +274,9 @@
 !! Main user source subroutine
       SUBROUTINE SOURCE ( NOMORE )
 
-      INCLUDE '(DBLPRC)'
-      INCLUDE '(DIMPAR)'
-      INCLUDE '(IOUNIT)'
+      INCLUDE 'dblprc.inc'
+      INCLUDE 'dimpar.inc'
+      INCLUDE 'iounit.inc'
 *
 *----------------------------------------------------------------------*
 *                                                                      *
@@ -304,15 +305,15 @@
 *                                                                      *
 *----------------------------------------------------------------------*
 
-      INCLUDE '(BEAMCM)'
-      INCLUDE '(FHEAVY)'
-      INCLUDE '(FLKSTK)'
-      INCLUDE '(IOIOCM)'
-      INCLUDE '(LTCLCM)'
-      INCLUDE '(PAPROP)'
-      INCLUDE '(SOURCM)'
-      INCLUDE '(SUMCOU)'
-      INCLUDE '(CASLIM)'
+      INCLUDE 'beamcm.inc'
+      INCLUDE 'fheavy.inc'
+      INCLUDE 'flkstk.inc'
+      INCLUDE 'ioiocm.inc'
+      INCLUDE 'ltclcm.inc'
+      INCLUDE 'paprop.inc'
+      INCLUDE 'sourcm.inc'
+      INCLUDE 'sumcou.inc'
+      INCLUDE 'caslim.inc'
 *
 *
 *     containers to store data from sobp.dat file
@@ -332,20 +333,22 @@
       LOGICAL LENMOMPOS
       DOUBLE PRECISION SRC2SPOT, AIRSCAT
       DOUBLE PRECISION FWHM2SIGMA
-      DOUBLE PRECISION AION, DES
+      DOUBLE PRECISION DES
       DOUBLE PRECISION XSPOT, YSPOT
       DOUBLE PRECISION SADX, SADY
-*
+
+      INTEGER IPOS
       INTEGER I, NRAN
+      INTEGER IONA
       DOUBLE PRECISION RW, ES, RAN
 
-      CHARACTER*256 FNAME
+      CHARACTER*256 FNAME, FPATH
 
       SAVE LPNTSRC
       SAVE ENERGY, DELTAE, XPOS, YPOS
       SAVE FWHMX, FWHMY, DIVX, DIVY, CORX, CORY, PART
       SAVE NWEIGHT
-*
+
       LOGICAL LFIRST
 
       SAVE LFIRST
@@ -362,7 +365,7 @@
 *  |  *** User initialization ***
 
 * set default file name for sobp.dat if not provided by user in SOURCE card
-         FNAME = TRIM(TITSOU)
+         FNAME = TRIM(SDUSOU)
          IF ( FNAME.EQ. '' ) THEN
              FNAME = 'sobp.dat'
          END IF
@@ -390,7 +393,6 @@
 
 *        Build cumulative weights only over strictly positive weights
 *        and compact beamlet arrays in-place to exclude zero-weight rows.
-         INTEGER IPOS
          IPOS = 0
          TOTW = 0.0D0
          DO I = 1, NWEIGHT
@@ -404,8 +406,8 @@
                YPOS(IPOS)   = YPOS(I)
                FWHMX(IPOS)  = FWHMX(I)
                FWHMY(IPOS)  = FWHMY(I)
-               EMX(IPOS)    = EMX(I)
-               EMY(IPOS)    = EMY(I)
+               DIVX(IPOS)    = DIVX(I)
+               DIVY(IPOS)    = DIVY(I)
                CORX(IPOS)   = CORX(I)
                CORY(IPOS)   = CORY(I)
                PART(IPOS)   = PART(I)
@@ -482,6 +484,7 @@
          IJHION = IPROZ  * 1000 + IPROA
          IJHION = IJHION * 100 + KXHEAV
          IONID  = IJHION
+         IONA   = IPROA
          CALL DCDION ( IONID )
          CALL SETION ( IONID )
 *  |
@@ -491,6 +494,7 @@
          IJHION = IPROZ  * 1000 + IPROA
          IJHION = IJHION * 100 + KXHEAV
          IONID  = IJHION
+         IONA   = IPROA
          CALL DCDION ( IONID )
          CALL SETION ( IONID )
          ILOFLK (NPFLKA) = IJHION
@@ -503,6 +507,7 @@
 *  |  Normal hadron:
       ELSE
          IONID = IJBEAM
+         IONA  = IBARCH(IONID)
          ILOFLK (NPFLKA) = IJBEAM
 *  |  Flag this is prompt radiation
          LRADDC (NPFLKA) = .FALSE.
@@ -544,17 +549,18 @@
 *  +-------------------------------------------------------------------*
 *  |  Particle momentum and energy
 
-*      In sobp.dat file energy is saved in GeV/nucleon, while
-*      in Fluka we need it in not per nucleon, but simply in GeV
-*      To achieve this we multiply energy by mass number A
-*      Fluka doesn't have any consistent method of calculating
-*      mass number (number of nucleons) for simple particles
-*      (such as protons and alphas) and heavy ions
-*      we use a method IBARCH to get baryonic charge which
-*      reduces to mass number for particles of interest
-        AION = DBLE( IBARCH(IONID) )
-        ES   = ENERGY(NRAN)  * AION
-        DES  = DELTAE(NRAN)  * AION
+*      ENERGY and DELTAE from sobp.dat are kinetic energy and sigma
+*      in GeV/nucleon. Convert them to total kinetic energy in GeV
+*      by multiplying by the integer mass number A, not by the
+*      physical ion mass in amu.
+        IF (IONA .LE. 0) THEN
+           WRITE(LUNOUT,*) 'SOBP SOURCE ERROR: invalid mass number',
+     &        IONA, ' for particle ', IONID
+           NOMORE = 5
+           RETURN
+        END IF
+        ES   = ENERGY(NRAN)  * DBLE(IONA)
+        DES  = DELTAE(NRAN)  * DBLE(IONA)
         IF (DES .LT. 0.0D0) DES = 0.0D0
 
 *  ....................................................................................
@@ -574,7 +580,7 @@
 *      We use following variables below:
 *        @   PMOFLK - particle momentum, in GeV/c
 *        @   AM(IONID) - particle rest energy, in GeV
-*        @   ENERGY(NRAN) - particle kinetic energy, in GeV
+*        @   ES - total particle kinetic energy, in GeV
 *  ....................................................................................
 *
 *      There is always a small chance that randomly sampled energy or momentum
@@ -644,7 +650,8 @@
 
 *      debugging printouts only if requested by user
        IF ( WHASOU(2) .NE. 0.0D0 ) THEN
-          WRITE(LUNOUT,*) 'SOBP E:', 1.D3*ES / AION, 'MeV/nucleon'
+          WRITE(LUNOUT,*) 'SOBP E:', 1.D3*ES / DBLE(IONA),
+     &       'MeV/nucleon'
           WRITE(LUNOUT,*) 'SOBP Z:', ZBEAM, 'cm'
           WRITE(LUNOUT,*) 'SOBP SOURCE EKIN', TKEFLK(NPFLKA)
           WRITE(LUNOUT,*) 'SOBP SOURCE MOMENTUM', PMOFLK(NPFLKA)
@@ -676,8 +683,7 @@
 
 
 *     Optional scanning steering (flag-controlled)
-*     WHASOU(1) != 0 -> apply steering; WHASOU(1) == 0 -> no steering
-      IF ( LPNTSRC .NE. 0.0D0 ) THEN
+      IF ( LPNTSRC ) THEN
          CALL APPLY_SAD_TILT(
      &      XSPOT, YSPOT,
      &      SADX, SADY,
@@ -807,12 +813,11 @@
       END
 
 
-
       INTEGER FUNCTION CDF_BINSEARCH( CUMW, N, X )
       IMPLICIT NONE
       INTEGER N
       DOUBLE PRECISION CUMW(N), X
-      INTEGER LO, HI, MID, I, IDX
+      INTEGER I, IDX
 
 *     For N <= 1, always return the first (and only) bin
       IF (N .LE. 1) THEN

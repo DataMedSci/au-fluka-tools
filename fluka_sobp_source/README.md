@@ -14,13 +14,13 @@ A FLUKA user-defined source implementation for simulating pencil beam scanning i
 Compile using the FLUKA utility:
 
 ```bash
-$FLUPRO/flutil/ldpm3qmd source_sampler.f -o flukadpm3_sobp
+ldpmqmd -oflukadpm_sobp source_sampler.f
 ```
 
 Place the `sobp.dat` file in the same directory as your FLUKA input file, then activate the custom source with a SOURCE card in your input file and run:
 
 ```bash
-rfluka -N0 -M1 -e flukadpm3_sobp your_input_file
+rfluka -N0 -M1 -e flukadpm_sobp your_input_file
 ```
 
 **Note**: This implementation is based on the template from `$FLUPRO/usermvax/source.f`.
@@ -43,7 +43,7 @@ SOURCE
 Spotlists can be generated from DICOM `RTPLAN` files together with a suitable beam model.
 We here use the tool [dicomexport](https://github.com/nbassler/dicomexport) to generate the spotlists.
 
-The FLUKA source sampler so far expects a file named `sobp.dat` with either 5,7,9 or 11 columns describing every spot:
+The FLUKA source sampler so far expects a file named `sobp.dat` with either 5,6,7,9 or 11 columns describing every spot:
 
 ```
 5: ENERGY, XPOS, YPOS, FWHMxy, WEIGHT
