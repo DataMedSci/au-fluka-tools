@@ -670,9 +670,20 @@
       XSPOT = XPOS(NRAN)
       YSPOT = YPOS(NRAN)
 
-*     Sample around the spot center at nozzle plane
+*     Interpret XSPOT/YSPOT as SHIELD-HIT reference-plane spot
+*     coordinates [cm], not as particle birth coordinates at BEAMPOS.
+*     For point-like virtual source/SAD mode, back-project the birth
+*     point to the FLUKA source plane ZBEAM [cm]. This makes the
+*     SAD-steered central ray pass through the requested spot coordinate
+*     near the SHIELD-HIT reference plane z = 0 cm.
       XBEAM = XSPOT
       YBEAM = YSPOT
+      IF ( LPNTSRC .AND. SADX .GT. 0.0D0 ) THEN
+         XBEAM = XSPOT - (XSPOT / SADX) * (0.0D0 - ZBEAM)
+      ENDIF
+      IF ( LPNTSRC .AND. SADY .GT. 0.0D0 ) THEN
+         YBEAM = YSPOT - (YSPOT / SADY) * (0.0D0 - ZBEAM)
+      ENDIF
 
 *     Sample (X,Y,TX,TY) in the local frame (mean angles = 0 here)
       CALL SAMPLE_PHASESPACE(
@@ -848,10 +859,12 @@
       IMPLICIT NONE
       DOUBLE PRECISION XC, YC, SADX, SADY, TX, TY
 
-*     Add mean angles so that the ray through (XC,YC) points to isocenter
-*     (sign convention: for +XC, beam needs -TX to aim back to axis)
-      IF (SADX .GT. 0.0D0) TX = TX - XC / SADX
-      IF (SADY .GT. 0.0D0) TY = TY - YC / SADY
+*     Apply point-like virtual-source angular correction.
+*     SADX and SADY are positive downstream source-axis distances [cm].
+*     XSPOT/YSPOT are reference-plane coordinates, so positive X/Y spots
+*     require positive TX/TY contributions for a +z travelling beam.
+      IF (SADX .GT. 0.0D0) TX = TX + XC / SADX
+      IF (SADY .GT. 0.0D0) TY = TY + YC / SADY
 
       RETURN
       END
