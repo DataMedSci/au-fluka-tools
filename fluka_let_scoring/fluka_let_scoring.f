@@ -503,7 +503,7 @@ C     ------------------------------------------------------------------
 C     Li-6 fluence/filter branch for FLUSCW.
 C
 C     Scorer key:
-C        SCONAM = 'LI6_'
+C        SCONAM starts with 'LI6_'
 C
 C     Physics meaning:
 C        Keep only transported lithium-6 fragments, identified as
@@ -519,7 +519,7 @@ C        it. That ancestry information would require production-time
 C        tagging with STUPRF or MDSTCK.
 C     ------------------------------------------------------------------
 
-      IF ( SCONAM .EQ. 'LI6_' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'LI6_' ) THEN
          FLUSCW = ZERZER
 
          IF ( JTRACK .LT. -6 .AND. NPHEAV .GT. 0 ) THEN
@@ -539,7 +539,7 @@ C     ------------------------------------------------------------------
 C     Li-7 fluence/filter branch for FLUSCW.
 C
 C     Scorer key:
-C        SCONAM = 'LI7_'
+C        SCONAM starts with 'LI7_'
 C
 C     Physics meaning:
 C        Keep only transported lithium-7 fragments, identified as
@@ -555,7 +555,7 @@ C        nuclear reaction channel. That would require production-time
 C        ancestry tagging with STUPRF or MDSTCK.
 C     ------------------------------------------------------------------
 
-      IF ( SCONAM .EQ. 'LI7_' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'LI7_' ) THEN
          FLUSCW = ZERZER
 
          IF ( JTRACK .LT. -6 .AND. NPHEAV .GT. 0 ) THEN
@@ -659,12 +659,14 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
          ELSE IF (SCONAM .EQ. 'PWL1') THEN
             MATLET = 30
             LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
-            FLUSCW = LETW
+            LETLIN = RHO(MATLET) * LETW
+            FLUSCW = LETLIN
 
          ELSE IF (SCONAM .EQ. 'PWL2') THEN
             MATLET = 30
             LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
-            FLUSCW = LETW * LETW
+            LETLIN = RHO(MATLET) * LETW
+            FLUSCW = LETLIN * LETLIN
 
          ELSE IF (SCONAM .EQ. 'PRI_') THEN
             IF ( LTRACK .EQ. 1 ) THEN
@@ -705,7 +707,8 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
             IF ( LTRACK .EQ. 1 ) THEN
                MATLET = 30
                LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
-               FLUSCW = LETW
+               LETLIN = RHO(MATLET) * LETW
+               FLUSCW = LETLIN
             ELSE
                FLUSCW = ZERZER
             END IF
@@ -714,7 +717,8 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
             IF ( LTRACK .EQ. 1 ) THEN
                MATLET = 30
                LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
-               FLUSCW = LETW * LETW
+               LETLIN = RHO(MATLET) * LETW
+               FLUSCW = LETLIN * LETLIN
             ELSE
                FLUSCW = ZERZER
             END IF
@@ -804,7 +808,7 @@ C     ------------------------------------------------------------------
 C     Li-6 DOSE filter for COMSCW.
 C
 C     Scorer key:
-C        SCONAM = 'LI6_'
+C        SCONAM starts with 'LI6_'
 C
 C     Physics meaning:
 C        For Li-6 dose-like USRBIN scorers, reject every transported
@@ -820,7 +824,8 @@ C        This filters dose contributions during transport. It does not
 C        identify the production site or parent particle of the Li-6.
 C     ------------------------------------------------------------------
 
-      IF ( ISCRNG .EQ. 1 .AND. SCONAM .EQ. 'LI6_' ) THEN
+      IF ( ISCRNG .EQ. 1 .AND.
+     &     SCONAM(1:4) .EQ. 'LI6_' ) THEN
          COMSCW = ZERZER
 
          IF ( JTRACK .LT. -6 .AND. NPHEAV .GT. 0 ) THEN
@@ -841,7 +846,7 @@ C     ------------------------------------------------------------------
 C     Li-7 DOSE filter for COMSCW.
 C
 C     Scorer key:
-C        SCONAM = 'LI7_'
+C        SCONAM starts with 'LI7_'
 C
 C     Physics meaning:
 C        For Li-7 dose-like USRBIN scorers, reject every transported
@@ -857,7 +862,8 @@ C        This filters dose contributions during transport. It does not
 C        identify the production site or parent particle of the Li-7.
 C     ------------------------------------------------------------------
 
-      IF ( ISCRNG .EQ. 1 .AND. SCONAM .EQ. 'LI7_' ) THEN
+      IF ( ISCRNG .EQ. 1 .AND.
+     &     SCONAM(1:4) .EQ. 'LI7_' ) THEN
          COMSCW = ZERZER
 
          IF ( JTRACK .LT. -6 .AND. NPHEAV .GT. 0 ) THEN
