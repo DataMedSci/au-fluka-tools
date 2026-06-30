@@ -4,8 +4,8 @@ This folder contains FLUKA user-routine code used for LET-related scoring in the
 
 ## Files
 
-- `source_sampler.f`  
-  Source routine for sampling the FLUKA beam/source phase-space.
+- `../fluka_sobp_source/source_sampler.f`
+  Source routine for sampling the FLUKA beam/source phase-space (stored in `fluka_sobp_source/`).
 
 - `fluka_let_scoring.f`  
   Scoring-only user-routine file containing the `FLUSCW` and `COMSCW` routines used to calculate and filter LET, fluence, dose, and fragment-related scoring quantities.
