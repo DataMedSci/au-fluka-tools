@@ -654,7 +654,8 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
 
          IF (SCONAM .EQ. 'PHL1') THEN
             MATLET = MEDFLK(NREG,1)
-            IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND. MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+            IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
+     &           MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
                FLUSCW = ZERZER
                RETURN
             END IF
