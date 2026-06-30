@@ -601,6 +601,22 @@ C        ancestry details would require production-time tagging with
 C        STUPRF or MDSTCK.
 C     ------------------------------------------------------------------
 
+      IF ( ISCRNG .EQ. 2 .AND.
+     &     ( SCONAM .EQ. 'PHL1' .OR.
+     &       SCONAM .EQ. 'PHL2' .OR.
+     &       SCONAM .EQ. 'PWL1' .OR.
+     &       SCONAM .EQ. 'PWL2' .OR.
+     &       SCONAM .EQ. 'PRI_' .OR.
+     &       SCONAM .EQ. 'PRL1' .OR.
+     &       SCONAM .EQ. 'PRL2' .OR.
+     &       SCONAM .EQ. 'PWR1' .OR.
+     &       SCONAM .EQ. 'PWR2' ) ) THEN
+         IF ( IJ .NE. 1 ) THEN
+            FLUSCW = ZERZER
+            RETURN
+         END IF
+      END IF
+
       IF ( IJ .EQ. 1 .AND. ISCRNG .EQ. 2 ) THEN
          EKIN = -PLA
          IF ( EKIN .LE. 1.0D-09 ) THEN
