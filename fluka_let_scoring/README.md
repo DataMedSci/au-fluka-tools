@@ -1,5 +1,16 @@
 # FLUKA LET scoring routines
 
+## Required companion source routine
+
+`fluka_let_scoring.f` is not a complete FLUKA executable by itself. It provides the `FLUSCW` and `COMSCW` scoring routines only.
+
+To run the SOBP/LET benchmark input files in this repository, it must be compiled and linked together with the SOBP source routine:
+
+`../fluka_sobp_source/source_sampler.f`
+
+That source routine implements the FLUKA `SOURCE` entry point and reads the beam/source table referenced by the input cards, for example `sobp.dat`. Without a matching `SOURCE` routine, the benchmark input files cannot sample the intended proton field.
+
+
 This folder contains FLUKA user-routine code for LET-moment, fluence-filter, and dose-filter scoring.
 
 The main file is:
