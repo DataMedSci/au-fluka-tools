@@ -37,22 +37,28 @@
 
 C
 C     Water-equivalent material index for the water-reference LET
-C     scorers (PAW1/PAW2, P1W1/P1W2, ALW1/ALW2). This is the single
-C     place the water material is defined -- there are no hardcoded
-C     material numbers elsewhere in this routine.
+C     scorers (PAW1/PAW2, P1W1/P1W2, ALW1/ALW2). Resolved once, on the
+C     first scoring call, into MWATER. There are no hardcoded material
+C     numbers anywhere in this routine.
 C
 C     Local-material scorers use MEDFLK(NREG,1) directly, i.e. LET is
 C     evaluated in whatever material the particle is currently in.
 C     Water-reference scorers use MWATER instead.
 C
-C     Set MWATER below to the material index of your WATER (or water-
-C     equivalent) material. The chosen value is written to the FLUKA
-C     output (LUNOUT) on the first scoring call so it can be verified.
-C     Auto-detecting this by material name would need the FLUKA
-C     material-name table from the local installation; see README.md.
+C     MWATER is resolved as:
+C        1. MATQLT -- FLUKA's built-in "extra water material for Q(L)
+C           calculations" (flkmat.inc). This exists for dose-equivalent
+C           / quality-factor scoring and is available even when the
+C           input deck defines no explicit WATER material.
+C        2. otherwise, the first material named 'WATER' in MATNAM.
+C        3. otherwise MWATER stays .LE. 0 and the water-reference
+C           scorers return zero (a warning is written to LUNOUT).
+C
+C     The resolved value is written to the FLUKA output (LUNOUT) on the
+C     first scoring call so it can be verified.
 C
       SAVE MWATER, LETFRS
-      DATA MWATER / 30 /
+      DATA MWATER / -1 /
       DATA LETFRS / .TRUE. /
 
 
@@ -61,7 +67,19 @@ C
       SCONAM = TRIM(ADJUSTL(TITUSB(JSCRNG)))
 
       IF ( LETFRS ) THEN
-         WRITE(LUNOUT,*) ' fluka_let_scoring: water MWATER =', MWATER
+         MWATER = MATQLT
+         IF ( MWATER .LE. 0 ) THEN
+            DO II = 1, NMAT
+               IF ( MWATER .LE. 0 .AND.
+     &              MATNAM(II)(1:5) .EQ. 'WATER' ) MWATER = II
+            END DO
+         END IF
+         IF ( MWATER .LE. 0 ) THEN
+            WRITE(LUNOUT,*) ' fluka_let_scoring: WARNING no WATER',
+     &                      ' material found; water scorers return 0'
+         ELSE
+            WRITE(LUNOUT,*) ' fluka_let_scoring: water MWATER =', MWATER
+         END IF
          LETFRS = .FALSE.
       END IF
 
@@ -119,7 +137,7 @@ C     ------------------------------------------------------------------
 C     Deuteron LET weighting branch for fluence-type USRBIN.
 C     Scorer name first four characters: D2L1.
 
-      IF ( SCONAM .EQ. 'D2L1' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'D2L1' ) THEN
          FLUSCW = ZERZER
 
          IF ( IJ .NE. -3 ) THEN
@@ -145,7 +163,7 @@ C     Scorer name first four characters: D2L1.
 C     Deuteron LET^2 weighting branch for DLET numerator.
 C     Scorer name first four characters: D2L2.
 
-      IF ( SCONAM .EQ. 'D2L2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'D2L2' ) THEN
          FLUSCW = ZERZER
 
          IF ( IJ .NE. -3 ) THEN
@@ -173,7 +191,7 @@ C     Scorer name first four characters: D2L2.
 C     Triton LET weighting branch for fluence-type USRBIN.
 C     Scorer name first four characters: T3L1.
 
-      IF ( SCONAM .EQ. 'T3L1' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'T3L1' ) THEN
          FLUSCW = ZERZER
 
          IF ( IJ .NE. -4 ) THEN
@@ -199,7 +217,7 @@ C     Scorer name first four characters: T3L1.
 C     Triton LET^2 weighting branch for DLET numerator.
 C     Scorer name first four characters: T3L2.
 
-      IF ( SCONAM .EQ. 'T3L2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'T3L2' ) THEN
          FLUSCW = ZERZER
 
          IF ( IJ .NE. -4 ) THEN
@@ -227,7 +245,7 @@ C     Scorer name first four characters: T3L2.
 C     Helium-3 LET weighting branch for fluence-type USRBIN.
 C     Scorer name first four characters: H3L1.
 
-      IF ( SCONAM .EQ. 'H3L1' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'H3L1' ) THEN
          FLUSCW = ZERZER
 
          IF ( IJ .NE. -5 ) THEN
@@ -253,7 +271,7 @@ C     Scorer name first four characters: H3L1.
 C     Helium-3 LET^2 weighting branch for H3LET numerator.
 C     Scorer name first four characters: H3L2.
 
-      IF ( SCONAM .EQ. 'H3L2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'H3L2' ) THEN
          FLUSCW = ZERZER
 
          IF ( IJ .NE. -5 ) THEN
@@ -281,7 +299,7 @@ C     Scorer name first four characters: H3L2.
 C     Helium-4 / alpha LET weighting branch for fluence-type USRBIN.
 C     Scorer name first four characters: H4L1.
 
-      IF ( SCONAM .EQ. 'H4L1' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'H4L1' ) THEN
          FLUSCW = ZERZER
 
          IF ( IJ .NE. -6 ) THEN
@@ -306,7 +324,7 @@ C     Scorer name first four characters: H4L1.
 C     Helium-4 / alpha LET^2 weighting branch for H4LET numerator.
 C     Scorer name first four characters: H4L2.
 
-      IF ( SCONAM .EQ. 'H4L2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'H4L2' ) THEN
          FLUSCW = ZERZER
 
          IF ( IJ .NE. -6 ) THEN
@@ -362,7 +380,7 @@ C        because 1 GeV/cm = 100 keV/um.
 C     ------------------------------------------------------------------
 
 
-      IF ( SCONAM .EQ. 'L6L1' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'L6L1' ) THEN
          FLUSCW = ZERZER
 
          IF ( JTRACK .LT. -6 .AND. NPHEAV .GT. 0 ) THEN
@@ -409,7 +427,7 @@ C     Unit reconstruction is identical to L6L1:
 C        LET [keV/um] = 100 * SUMD [GeV] / SUMT [cm].
 C     ------------------------------------------------------------------
 
-      IF ( SCONAM .EQ. 'L6L2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'L6L2' ) THEN
          FLUSCW = ZERZER
 
          IF ( JTRACK .LT. -6 .AND. NPHEAV .GT. 0 ) THEN
@@ -464,7 +482,7 @@ C        LET [keV/um] = 100 * SUMD [GeV] / SUMT [cm].
 C     ------------------------------------------------------------------
 
 
-      IF ( SCONAM .EQ. 'L7L1' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'L7L1' ) THEN
          FLUSCW = ZERZER
 
          IF ( JTRACK .LT. -6 .AND. NPHEAV .GT. 0 ) THEN
@@ -511,7 +529,7 @@ C     Unit reconstruction is identical to L7L1:
 C        LET [keV/um] = 100 * SUMD [GeV] / SUMT [cm].
 C     ------------------------------------------------------------------
 
-      IF ( SCONAM .EQ. 'L7L2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'L7L2' ) THEN
          FLUSCW = ZERZER
 
          IF ( JTRACK .LT. -6 .AND. NPHEAV .GT. 0 ) THEN
@@ -638,7 +656,7 @@ C        dose-averaged LET  = ALL2 / ALL1
 C        track-averaged LET = ALL1 / (unweighted fluence)
 C     ==================================================================
 
-      IF ( SCONAM .EQ. 'ALL1' .OR. SCONAM .EQ. 'ALL2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'ALL1' .OR. SCONAM(1:4) .EQ. 'ALL2' ) THEN
          FLUSCW = ZERZER
 
 C        Skip neutral particles (regular particles with zero charge).
@@ -659,7 +677,7 @@ C        Ions are transported with JTRACK .LT. 0 and are always charged.
 
          IF ( SUMT .GT. ZERZER ) THEN
             LETW = 100.0D0 * SUMD / SUMT
-            IF ( SCONAM .EQ. 'ALL1' ) THEN
+            IF ( SCONAM(1:4) .EQ. 'ALL1' ) THEN
                FLUSCW = LETW
             ELSE
                FLUSCW = LETW * LETW
@@ -685,8 +703,10 @@ C     in the water-reference variant. Use ALL1/ALL2 for the complete
 C     all-particle (local) quantity.
 C     ==================================================================
 
-      IF ( SCONAM .EQ. 'ALW1' .OR. SCONAM .EQ. 'ALW2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'ALW1' .OR. SCONAM(1:4) .EQ. 'ALW2' ) THEN
          FLUSCW = ZERZER
+
+         IF ( MWATER .LE. 0 ) RETURN
 
          IF ( IJ .NE. 1  .AND. IJ .NE. -3 .AND. IJ .NE. -4 .AND.
      &        IJ .NE. -5 .AND. IJ .NE. -6 ) THEN
@@ -700,7 +720,7 @@ C     ==================================================================
 
          LETW = GETLET(IJ, EKIN, PLA, ZERZER, MWATER)
          LETLIN = RHO(MWATER) * LETW
-         IF ( SCONAM .EQ. 'ALW1' ) THEN
+         IF ( SCONAM(1:4) .EQ. 'ALW1' ) THEN
             FLUSCW = LETLIN
          ELSE
             FLUSCW = LETLIN * LETLIN
@@ -739,15 +759,15 @@ C        STUPRF or MDSTCK.
 C     ------------------------------------------------------------------
 
       IF ( ISCRNG .EQ. 2 .AND.
-     &     ( SCONAM .EQ. 'PAL1' .OR.
-     &       SCONAM .EQ. 'PAL2' .OR.
-     &       SCONAM .EQ. 'PAW1' .OR.
-     &       SCONAM .EQ. 'PAW2' .OR.
-     &       SCONAM .EQ. 'P1FL' .OR.
-     &       SCONAM .EQ. 'P1L1' .OR.
-     &       SCONAM .EQ. 'P1L2' .OR.
-     &       SCONAM .EQ. 'P1W1' .OR.
-     &       SCONAM .EQ. 'P1W2' ) ) THEN
+     &     ( SCONAM(1:4) .EQ. 'PAL1' .OR.
+     &       SCONAM(1:4) .EQ. 'PAL2' .OR.
+     &       SCONAM(1:4) .EQ. 'PAW1' .OR.
+     &       SCONAM(1:4) .EQ. 'PAW2' .OR.
+     &       SCONAM(1:4) .EQ. 'P1FL' .OR.
+     &       SCONAM(1:4) .EQ. 'P1L1' .OR.
+     &       SCONAM(1:4) .EQ. 'P1L2' .OR.
+     &       SCONAM(1:4) .EQ. 'P1W1' .OR.
+     &       SCONAM(1:4) .EQ. 'P1W2' ) ) THEN
          IF ( IJ .NE. 1 ) THEN
             FLUSCW = ZERZER
             RETURN
@@ -789,7 +809,7 @@ C        P1W1, P1W2:
 C           Primary/source-generation proton LET and LET^2 evaluated in
 C           water. Require LTRACK .EQ. 1 and use MATLET = MWATER.
 
-         IF (SCONAM .EQ. 'PAL1') THEN
+         IF (SCONAM(1:4) .EQ. 'PAL1') THEN
             MATLET = MEDFLK(NREG,1)
             IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
                FLUSCW = ZERZER
@@ -799,7 +819,7 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = MWATER.
             LETLIN = RHO(MATLET) * LETW
             FLUSCW = LETLIN
 
-         ELSE IF (SCONAM .EQ. 'PAL2') THEN
+         ELSE IF (SCONAM(1:4) .EQ. 'PAL2') THEN
             MATLET = MEDFLK(NREG,1)
             IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
                FLUSCW = ZERZER
@@ -809,26 +829,34 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = MWATER.
             LETLIN = RHO(MATLET) * LETW
             FLUSCW = LETLIN * LETLIN
 
-         ELSE IF (SCONAM .EQ. 'PAW1') THEN
+         ELSE IF (SCONAM(1:4) .EQ. 'PAW1') THEN
+            IF ( MWATER .LE. 0 ) THEN
+               FLUSCW = ZERZER
+               RETURN
+            END IF
             MATLET = MWATER
             LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
             LETLIN = RHO(MATLET) * LETW
             FLUSCW = LETLIN
 
-         ELSE IF (SCONAM .EQ. 'PAW2') THEN
+         ELSE IF (SCONAM(1:4) .EQ. 'PAW2') THEN
+            IF ( MWATER .LE. 0 ) THEN
+               FLUSCW = ZERZER
+               RETURN
+            END IF
             MATLET = MWATER
             LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
             LETLIN = RHO(MATLET) * LETW
             FLUSCW = LETLIN * LETLIN
 
-         ELSE IF (SCONAM .EQ. 'P1FL') THEN
+         ELSE IF (SCONAM(1:4) .EQ. 'P1FL') THEN
             IF ( LTRACK .EQ. 1 ) THEN
                FLUSCW = ONEONE
             ELSE
                FLUSCW = ZERZER
             END IF
 
-         ELSE IF (SCONAM .EQ. 'P1L1') THEN
+         ELSE IF (SCONAM(1:4) .EQ. 'P1L1') THEN
             IF ( LTRACK .EQ. 1 ) THEN
                MATLET = MEDFLK(NREG,1)
                IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
@@ -842,7 +870,7 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = MWATER.
                FLUSCW = ZERZER
             END IF
 
-         ELSE IF (SCONAM .EQ. 'P1L2') THEN
+         ELSE IF (SCONAM(1:4) .EQ. 'P1L2') THEN
             IF ( LTRACK .EQ. 1 ) THEN
                MATLET = MEDFLK(NREG,1)
                IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
@@ -856,8 +884,12 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = MWATER.
                FLUSCW = ZERZER
             END IF
 
-         ELSE IF (SCONAM .EQ. 'P1W1') THEN
+         ELSE IF (SCONAM(1:4) .EQ. 'P1W1') THEN
             IF ( LTRACK .EQ. 1 ) THEN
+               IF ( MWATER .LE. 0 ) THEN
+                  FLUSCW = ZERZER
+                  RETURN
+               END IF
                MATLET = MWATER
                LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
                LETLIN = RHO(MATLET) * LETW
@@ -866,8 +898,12 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = MWATER.
                FLUSCW = ZERZER
             END IF
 
-         ELSE IF (SCONAM .EQ. 'P1W2') THEN
+         ELSE IF (SCONAM(1:4) .EQ. 'P1W2') THEN
             IF ( LTRACK .EQ. 1 ) THEN
+               IF ( MWATER .LE. 0 ) THEN
+                  FLUSCW = ZERZER
+                  RETURN
+               END IF
                MATLET = MWATER
                LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
                LETLIN = RHO(MATLET) * LETW
@@ -948,7 +984,7 @@ C     This is different from PDOSE_ZN, which uses AUXSCORE PROTON and
 C     therefore includes both primary and secondary protons.
 C     ------------------------------------------------------------------
 
-      IF ( ISCRNG .EQ. 1 .AND. SCONAM .EQ. 'P1DO' ) THEN
+      IF ( ISCRNG .EQ. 1 .AND. SCONAM(1:4) .EQ. 'P1DO' ) THEN
          IF ( IJ .EQ. 1 .AND. LTRACK .EQ. 1 ) THEN
             COMSCW = ONEONE
          ELSE

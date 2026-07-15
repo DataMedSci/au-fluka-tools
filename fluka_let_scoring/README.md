@@ -13,9 +13,10 @@ of averaged LET in radiation biology for particle therapy.* Radiotherapy and Onc
 
 ## Quick start
 
-1. In your FLUKA input, give a `USRBIN` scorer a **four-character** name that this
-   routine recognises (e.g. `ALL1`). The name is read from `TITUSB(JSCRNG)`; its first
-   four characters select the branch.
+1. In your FLUKA input, give a `USRBIN` scorer a name whose **first four characters** are
+   a key this routine recognises (e.g. `ALL1`). The name is read from `TITUSB(JSCRNG)`;
+   only the first four characters select the branch, so you may append a suffix for your
+   own bookkeeping (e.g. `ALL1_ZN`).
 2. Activate user weighting with a `USERWEIG` card (`WHAT(3)=1` to call `FLUSCW`,
    `WHAT(6)=1` to call `COMSCW`).
 3. Compile and link the routine into a custom FLUKA executable (see *Compilation*).
@@ -78,12 +79,14 @@ Kalholm review stresses:
   (`MATLET ≤ 0` or `RHO ≤ 0`). Restricting *where* you score is the job of the `USRBIN`
   geometry, not of a material list. (The old hardcoded `27/28/29/30` filter has been
   removed.)
-- **Water-reference scorers** use `MATLET = MWATER`, a single constant set once near the
-  top of `fluka_let_scoring.f`. Set it to your `WATER` material index. On the first
-  scoring call the routine writes `fluka_let_scoring: water MWATER = <n>` to the FLUKA
-  output so you can confirm it. (Auto-detecting the water index by material name would
-  require the FLUKA material-name table from your installation — a possible future
-  improvement.)
+- **Water-reference scorers** use `MATLET = MWATER`, resolved **automatically** on the
+  first scoring call — there are no hardcoded material numbers. `MWATER` is taken from
+  FLUKA's built-in `MATQLT` (the "extra water material for Q(L) calculations" in
+  `flkmat.inc`, present even when the input defines no explicit `WATER`); failing that,
+  from the first material named `WATER` in `MATNAM`. The chosen index is written to the
+  FLUKA output as `fluka_let_scoring: water MWATER = <n>` so you can verify it. If no
+  water material can be found, the water-reference scorers return zero and a warning is
+  printed.
 
 ## Moment convention
 
@@ -152,17 +155,35 @@ or `MDSTCK`.
 
 ## Compilation
 
-Link the routine into a custom FLUKA executable with the FLUKA build tools:
+Compile the routine and link it into a custom FLUKA executable with the FLUKA build
+tools. Compiled and linked with **FLUKA 4** (`fff` + `lfluka`):
 
 ```bash
-export FLUPRO=/path/to/fluka
-export FLUKADATA=$FLUPRO/data
-$FLUPRO/bin/ldpmqmd -o fluka_let_scoring_exe fluka_let_scoring.f
+export FLUPRO=/usr/local/fluka        # your FLUKA install
+export PATH=$PATH:$FLUPRO/bin
+fff fluka_let_scoring.f               # -> fluka_let_scoring.o
+lfluka -m fluka -o flukalet fluka_let_scoring.o
 ```
 
-The exact path and wrapper name vary between installations. This file is compile-tested
-with literal FLUKA include names (`INCLUDE 'dblprc.inc'`); on the tested install the
-token form `INCLUDE '(DBLPRC)'` did not compile with the local `ldpmqmd` wrapper.
+The include files are referenced by their literal names (`INCLUDE 'dblprc.inc'`), which
+is what `fff` expects. The exact tool names vary between FLUKA distributions (older
+`ldpmqmd` wrappers work too).
+
+## Testing
+
+`tests/` contains a ready-to-run example, `plan01_field01_geoA_SOBPcent.inp`, that
+exercises the scorer keys (proton, light-fragment, and lithium LET moments plus the
+dose/fluence filters). It uses a `SOURCE` reading the accompanying `sobp.dat` spot list,
+so the executable must also link the source sampler from `../fluka_sobp_source`:
+
+```bash
+fff ../fluka_sobp_source/source_sampler.f
+lfluka -m fluka -o flukalet fluka_let_scoring.o source_sampler.o
+cd tests && rfluka -e ../flukalet -N0 -M1 plan01_field01_geoA_SOBPcent
+```
+
+On the first scoring call the run prints `fluka_let_scoring: water MWATER = <n>` to the
+`.out`, confirming the auto-detected water material.
 
 ## Adding or changing a scorer
 
