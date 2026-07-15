@@ -31,13 +31,39 @@
 
       DOUBLE PRECISION GETLET
       DOUBLE PRECISION EKIN, LETW, LETLIN, SUMT, SUMD
-      INTEGER MATLET, IHEAV, II
+      INTEGER MATLET, IHEAV, II, MWATER
+      LOGICAL LETFRS
       CHARACTER*8 SCONAM
+
+C
+C     Water-equivalent material index for the water-reference LET
+C     scorers (PAW1/PAW2, P1W1/P1W2, ALW1/ALW2). This is the single
+C     place the water material is defined -- there are no hardcoded
+C     material numbers elsewhere in this routine.
+C
+C     Local-material scorers use MEDFLK(NREG,1) directly, i.e. LET is
+C     evaluated in whatever material the particle is currently in.
+C     Water-reference scorers use MWATER instead.
+C
+C     Set MWATER below to the material index of your WATER (or water-
+C     equivalent) material. The chosen value is written to the FLUKA
+C     output (LUNOUT) on the first scoring call so it can be verified.
+C     Auto-detecting this by material name would need the FLUKA
+C     material-name table from the local installation; see README.md.
+C
+      SAVE MWATER, LETFRS
+      DATA MWATER / 30 /
+      DATA LETFRS / .TRUE. /
 
 
       FLUSCW = ONEONE
       LSCZER = .FALSE.
       SCONAM = TRIM(ADJUSTL(TITUSB(JSCRNG)))
+
+      IF ( LETFRS ) THEN
+         WRITE(LUNOUT,*) ' fluka_let_scoring: water MWATER =', MWATER
+         LETFRS = .FALSE.
+      END IF
 
 C
 C     Scorer-key naming convention:
@@ -78,11 +104,11 @@ C     implementation; Li-6/Li-7 are therefore handled through FLUKA's
 C     heavy-fragment bookkeeping and reconstructed from TRACKR quantities.
 C
 C     MATLET is taken from MEDFLK(NREG,1), i.e. the material assigned to
-C     the current FLUKA region. The material filter below restricts LET
-C     scoring to material indices 27, 28, 29, and 30. These are
-C     geometry-specific material numbers for the benchmark phantom/slab
-C     scoring media, so they must be checked if the material card order
-C     or geometry is changed.
+C     the current FLUKA region, so LET is evaluated in whatever material
+C     the particle is currently in. The only guard applied is to skip
+C     vacuum / non-material regions (MATLET .LE. 0 or RHO .LE. 0), where
+C     GETLET/RHO would be meaningless. Spatial restriction of the scoring
+C     is the job of the USRBIN geometry, not of a hardcoded material list.
 C
 C     These branches classify the particle currently being transported.
 C     They do not record where the fragment was produced or which parent
@@ -106,8 +132,7 @@ C     Scorer name first four characters: D2L1.
          END IF
 
          MATLET = MEDFLK(NREG,1)
-         IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &        MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+         IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
             FLUSCW = ZERZER
             RETURN
          END IF
@@ -134,8 +159,7 @@ C     Scorer name first four characters: D2L2.
          END IF
 
          MATLET = MEDFLK(NREG,1)
-         IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &        MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+         IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
             FLUSCW = ZERZER
             RETURN
          END IF
@@ -162,8 +186,7 @@ C     Scorer name first four characters: T3L1.
          END IF
 
          MATLET = MEDFLK(NREG,1)
-         IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &        MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+         IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
             FLUSCW = ZERZER
             RETURN
          END IF
@@ -190,8 +213,7 @@ C     Scorer name first four characters: T3L2.
          END IF
 
          MATLET = MEDFLK(NREG,1)
-         IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &        MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+         IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
             FLUSCW = ZERZER
             RETURN
          END IF
@@ -218,8 +240,7 @@ C     Scorer name first four characters: H3L1.
          END IF
 
          MATLET = MEDFLK(NREG,1)
-         IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &        MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+         IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
             FLUSCW = ZERZER
             RETURN
          END IF
@@ -246,8 +267,7 @@ C     Scorer name first four characters: H3L2.
          END IF
 
          MATLET = MEDFLK(NREG,1)
-         IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &        MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+         IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
             FLUSCW = ZERZER
             RETURN
          END IF
@@ -273,8 +293,7 @@ C     Scorer name first four characters: H4L1.
             RETURN
          END IF
          MATLET = MEDFLK(NREG,1)
-         IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &        MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+         IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
             FLUSCW = ZERZER
             RETURN
          END IF
@@ -301,8 +320,7 @@ C     Scorer name first four characters: H4L2.
          END IF
 
          MATLET = MEDFLK(NREG,1)
-         IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &        MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+         IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
             FLUSCW = ZERZER
             RETURN
          END IF
@@ -595,6 +613,101 @@ C     ------------------------------------------------------------------
 
          RETURN
       END IF
+
+C     ==================================================================
+C     All-charged-particle LET moments -- the primary quantity.
+C
+C     Scorer keys:
+C        ALL1   first  LET moment  [keV/um]
+C        ALL2   second LET moment  [(keV/um)^2]
+C
+C     LET here is the true LOCAL energy-deposition LET of the currently
+C     transported charged particle, reconstructed from TRACKR step data:
+C
+C        LET [keV/um] = 100 * SUMD [GeV] / SUMT [cm]
+C
+C     (1 GeV/cm = 100 keV/um). This definition is universal: it is valid
+C     for every charged particle FLUKA transports -- protons, light ions,
+C     and heavy fragments -- independent of GETLET and independent of the
+C     local material. Neutral particles carry no LET and are skipped.
+C
+C     Post-processing (pair with the matching unweighted fluence scorer,
+C     e.g. an ordinary track-length USRBIN of the same particle set):
+C
+C        dose-averaged LET  = ALL2 / ALL1
+C        track-averaged LET = ALL1 / (unweighted fluence)
+C     ==================================================================
+
+      IF ( SCONAM .EQ. 'ALL1' .OR. SCONAM .EQ. 'ALL2' ) THEN
+         FLUSCW = ZERZER
+
+C        Skip neutral particles (regular particles with zero charge).
+C        Ions are transported with JTRACK .LT. 0 and are always charged.
+         IF ( JTRACK .GT. 0 ) THEN
+            IF ( ICHRGE(JTRACK) .EQ. 0 ) RETURN
+         END IF
+
+         SUMT = ZERZER
+         DO II = 1, NTRACK
+            SUMT = SUMT + TTRACK(II)
+         END DO
+
+         SUMD = ZERZER
+         DO II = 1, MTRACK
+            SUMD = SUMD + DTRACK(II)
+         END DO
+
+         IF ( SUMT .GT. ZERZER ) THEN
+            LETW = 100.0D0 * SUMD / SUMT
+            IF ( SCONAM .EQ. 'ALL1' ) THEN
+               FLUSCW = LETW
+            ELSE
+               FLUSCW = LETW * LETW
+            END IF
+         END IF
+
+         RETURN
+      END IF
+
+C     ==================================================================
+C     All-particle water-reference LET moments (GETLET evaluated in
+C     water, MATLET = MWATER).
+C
+C     Scorer keys:
+C        ALW1   first  LET moment  [keV/um], LET evaluated in water
+C        ALW2   second LET moment  [(keV/um)^2], LET evaluated in water
+C
+C     Water-reference LET is available through GETLET only for the light
+C     particles it supports: proton, deuteron, triton, He-3, He-4
+C     (IJ = 1, -3, -4, -5, -6). Heavier fragments (Li and above) cannot
+C     be evaluated in water with this GETLET build and are NOT included
+C     in the water-reference variant. Use ALL1/ALL2 for the complete
+C     all-particle (local) quantity.
+C     ==================================================================
+
+      IF ( SCONAM .EQ. 'ALW1' .OR. SCONAM .EQ. 'ALW2' ) THEN
+         FLUSCW = ZERZER
+
+         IF ( IJ .NE. 1  .AND. IJ .NE. -3 .AND. IJ .NE. -4 .AND.
+     &        IJ .NE. -5 .AND. IJ .NE. -6 ) THEN
+            RETURN
+         END IF
+
+         EKIN = -PLA
+         IF ( EKIN .LE. 1.0D-09 ) THEN
+            RETURN
+         END IF
+
+         LETW = GETLET(IJ, EKIN, PLA, ZERZER, MWATER)
+         LETLIN = RHO(MWATER) * LETW
+         IF ( SCONAM .EQ. 'ALW1' ) THEN
+            FLUSCW = LETLIN
+         ELSE
+            FLUSCW = LETLIN * LETLIN
+         END IF
+
+         RETURN
+      END IF
 C     ------------------------------------------------------------------
 C     Proton FLUSCW branch for LET and primary-proton fluence scoring.
 C
@@ -659,10 +772,10 @@ C           Returns LET^2 [(keV/um)^2].
 C
 C        PAW1:
 C           All-proton LET evaluated in water, independent of local
-C           material. Uses MATLET = 30.
+C           material. Uses MATLET = MWATER.
 C
 C        PAW2:
-C           All-proton LET^2 evaluated in water. Uses MATLET = 30.
+C           All-proton LET^2 evaluated in water. Uses MATLET = MWATER.
 C
 C        P1FL:
 C           Primary/source-generation proton fluence filter.
@@ -674,12 +787,11 @@ C           transport material. Require LTRACK .EQ. 1.
 C
 C        P1W1, P1W2:
 C           Primary/source-generation proton LET and LET^2 evaluated in
-C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
+C           water. Require LTRACK .EQ. 1 and use MATLET = MWATER.
 
          IF (SCONAM .EQ. 'PAL1') THEN
             MATLET = MEDFLK(NREG,1)
-            IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &           MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+            IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
                FLUSCW = ZERZER
                RETURN
             END IF
@@ -689,8 +801,7 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
 
          ELSE IF (SCONAM .EQ. 'PAL2') THEN
             MATLET = MEDFLK(NREG,1)
-            IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &           MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+            IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
                FLUSCW = ZERZER
                RETURN
             END IF
@@ -699,13 +810,13 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
             FLUSCW = LETLIN * LETLIN
 
          ELSE IF (SCONAM .EQ. 'PAW1') THEN
-            MATLET = 30
+            MATLET = MWATER
             LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
             LETLIN = RHO(MATLET) * LETW
             FLUSCW = LETLIN
 
          ELSE IF (SCONAM .EQ. 'PAW2') THEN
-            MATLET = 30
+            MATLET = MWATER
             LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
             LETLIN = RHO(MATLET) * LETW
             FLUSCW = LETLIN * LETLIN
@@ -720,8 +831,7 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
          ELSE IF (SCONAM .EQ. 'P1L1') THEN
             IF ( LTRACK .EQ. 1 ) THEN
                MATLET = MEDFLK(NREG,1)
-               IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &              MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+               IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
                   FLUSCW = ZERZER
                   RETURN
                END IF
@@ -735,8 +845,7 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
          ELSE IF (SCONAM .EQ. 'P1L2') THEN
             IF ( LTRACK .EQ. 1 ) THEN
                MATLET = MEDFLK(NREG,1)
-               IF ( MATLET .NE. 27 .AND. MATLET .NE. 28 .AND.
-     &              MATLET .NE. 29 .AND. MATLET .NE. 30 ) THEN
+               IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) THEN
                   FLUSCW = ZERZER
                   RETURN
                END IF
@@ -749,7 +858,7 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
 
          ELSE IF (SCONAM .EQ. 'P1W1') THEN
             IF ( LTRACK .EQ. 1 ) THEN
-               MATLET = 30
+               MATLET = MWATER
                LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
                LETLIN = RHO(MATLET) * LETW
                FLUSCW = LETLIN
@@ -759,7 +868,7 @@ C           water. Require LTRACK .EQ. 1 and use MATLET = 30.
 
          ELSE IF (SCONAM .EQ. 'P1W2') THEN
             IF ( LTRACK .EQ. 1 ) THEN
-               MATLET = 30
+               MATLET = MWATER
                LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
                LETLIN = RHO(MATLET) * LETW
                FLUSCW = LETLIN * LETLIN
