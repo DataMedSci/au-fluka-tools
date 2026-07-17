@@ -1,8 +1,8 @@
-# FLUKA LET scoring routines
+# FLUKA LET and Qeff scoring routines
 
-FLUKA `FLUSCW` and `COMSCW` user-weighting routines for scoring LET moments, from
-which averaged LET quantities (track-averaged and dose-averaged LET) are reconstructed
-in post-processing.
+FLUKA `FLUSCW` and `COMSCW` user-weighting routines for scoring LET and Qeff moments, from
+which averaged radiation-quality quantities (track-averaged and dose-averaged) are
+reconstructed in post-processing.
 
 These are **user routines**, not a standalone program. You link them into a custom FLUKA
 executable, then activate them from your input file with a `USERWEIG` card.
@@ -19,6 +19,12 @@ References:
 - Dirty dose applied to RBE: Kalholm F, Toma-Dasu I, Traneus E. *'Dirty dose'-based proton
   variable RBE models — performance assessment on in vitro data.* Medical Physics.
   2025;52(2):1311-22.
+- Qeff (the `ALQ1`/`ALQF`/`ALQD`/`ALDQ` scorers): Kalholm F, Grzanka L, Toma-Dasu I,
+  Bassler N. *Modeling RBE with other quantities than LET significantly improves
+  prediction of in vitro cell survival for proton therapy.* Medical Physics.
+  2023;50(1):651-9.
+- Kalholm F, et al. *Novel radiation quality metrics accounting for proton energy spectra
+  for RBE proton models.* Medical Physics. 2024;51(8):5773-82.
 
 ## Quick start
 
@@ -164,6 +170,7 @@ the five light species FLUKA supplies.
 | `H4L1`/`H4L2` | ⁴He / α | everything else | `GETLET`, local |
 | `L6L1`, `L6L2`, `L6FL`, `L6DO` | Li-6 (Z=3, A=6) | everything else | `TRACKR` |
 | `L7L1`, `L7L2`, `L7FL`, `L7DO` | Li-7 (Z=3, A=7) | everything else | `TRACKR` |
+| `ALQ1`, `ALQF`, `ALQD`, `ALDQ` | every charged particle FLUKA transports except e±: p, d, t, ³He, ⁴He, Li **and all heavier fragments** | e±, neutrals, point-like depositions | `QEFCAL` (no material, no stopping-power table) |
 
 Three consequences worth internalising:
 
@@ -190,6 +197,11 @@ All-particle (recommended starting point):
 | `ALW1` | all-particle water LET moment | p, d, t, ³He, ⁴He | water | LET |
 | `ALW2` | all-particle water LET² moment | p, d, t, ³He, ⁴He | water | LET² |
 | `ALWF` | water fluence (`ALW1`/`ALW2` denominator) | p, d, t, ³He, ⁴He | — | 1 |
+| `ALQ1` | all-particle Qeff moment, track-length weighted | charged hadrons + ions (no e±) | *(none)* | Qeff |
+| `ALQF` | all-particle fluence (`ALQ1` denominator) | charged hadrons + ions (no e±) | *(none)* | 1 |
+
+See [Effective-charge radiation quality: Qeff](#effective-charge-radiation-quality-qeff)
+below for `ALQ1`/`ALQF`, and for the `ALQD`/`ALDQ` pair in `COMSCW`.
 
 Protons:
 
@@ -225,6 +237,8 @@ Lithium (via `TRACKR`, because `GETLET` returns zero for transported Li):
 | Key | Meaning | Selection | Weight |
 |---|---|---|---|
 | `ALDD` | dirty dose (LET > 30 MeV cm²/g) | charged hadrons + ions (no e±) | 1 or 0 |
+| `ALQD` | dose weighted by Qeff | charged hadrons + ions (no e±) | Qeff |
+| `ALDQ` | dirty dose (Qeff > 30) | charged hadrons + ions (no e±) | 1 or 0 |
 | `P1DO` | primary-proton dose filter | `JTRACK=1`, `LTRACK=1` | 1 or 0 |
 | `L6DO` | Li-6 dose filter | Z=3, A=6 | 1 or 0 |
 | `L7DO` | Li-7 dose filter | Z=3, A=7 | 1 or 0 |
@@ -246,12 +260,29 @@ Dirty dose is the dose deposited by particles whose LET exceeds a threshold — 
 **30 MeV cm²/g** of unrestricted mass stopping power, equivalently **3 keV/µm in water**.
 It answers "how much of this dose was delivered by high-LET particles?", and pairs
 naturally with the LET scorers above. Heuchel et al. (2024) introduce the dirty/clean dose
-concept and its use in planning for a photon-like dose response, **and discuss the choice
-of threshold** — read it before changing the value. Kalholm et al. (2025) assess
-dirty-dose-based variable-RBE models against in vitro data.
+concept and its use in planning for a photon-like dose response; Kalholm et al. (2025)
+assess dirty-dose-based variable-RBE models against in vitro data.
 
-The threshold is the `DDTHRE` parameter in `COMSCW`, in MeV cm²/g; it is a single named
-constant, so changing it means editing one line and recompiling.
+### The two hardcoded dirty-dose thresholds
+
+There are two dirty-dose scorers, on two different quantities, each with its own hardcoded
+threshold. Both are single named `PARAMETER`s in `COMSCW` — change one line and recompile.
+
+| Scorer | Threshold quantity | Parameter | Value |
+|---|---|---|---|
+| `ALDD` | LET (unrestricted mass stopping power) | `DDTHRE` | **30 MeV cm²/g** = **3 keV/µm in water** |
+| `ALDQ` | Qeff = z_eff²/β² (dimensionless) | `DQTHRE` | **30** |
+
+The two values are both "30" **by construction, not by coincidence** — and they are not the
+same 30. They are different quantities in different units. `DQTHRE` was deliberately
+anchored to `DDTHRE`: a proton at the LET threshold (3 keV/µm in water, i.e. 30 MeV cm²/g,
+T ≈ 16.9 MeV, β ≈ 0.188) has **Qeff ≈ 30** (28.4 measured, rounded up). So for protons the
+two dirty-dose definitions cut at roughly the same place; for heavier ions they do not,
+because Qeff's `z_eff²` and LET's stopping power are different functions of energy. See the
+Qeff section below for the full derivation.
+
+Heuchel et al. (2024) discuss the choice of LET threshold — read it before changing
+`DDTHRE`.
 
 Score it with `ALDD` plus an unfiltered bin of the same generalized particle:
 
@@ -303,6 +334,102 @@ Caveats worth knowing before quoting a number:
 > it is required only "for technical reasons — to be overcome at a later stage". Any valid
 > file will do; `tests/letbio.dat` is a minimal one.
 
+## Effective-charge radiation quality: Qeff
+
+Qeff is a radiation-quality metric, not a LET: it is used the same way (as an RBE proxy,
+and to threshold dirty dose), but computed completely differently.
+
+**Qeff is material-independent and needs no stopping power.** It is a closed-form function
+of the particle's own charge and speed alone — nothing about the medium enters it:
+
+```text
+beta   = v/c
+z_eff  = z * ( 1 - exp( -125 * beta * |z|^(-2/3) ) )     (Barkas)
+Qeff   = z_eff^2 / beta^2
+```
+
+That is the fundamental difference from every LET key in this file: LET is a stopping
+power, so it depends on the material and (via `GETLET`) on a per-species table that only
+covers five light ions. Qeff depends on neither.
+
+Kalholm et al. (2023, 2024) show this and related energy/quality metrics improve RBE
+prediction over LET alone for proton therapy; this implementation is not tied to a
+particular RBE model, it just scores the moments needed to reconstruct Qeff and pairs it
+with dirty dose.
+
+Concretely, that material-independence buys two things none of the LET scorers have:
+
+- **One code path for every charged particle**, fragments included, with no `GETLET`
+  coverage gap and no `TRACKR` restricted/unrestricted question — see `QEFCAL` in the
+  source. β comes from `PTRACK/ETRACK` (needs no rest-mass lookup, which is awkward for
+  fragments); z comes from `ICHRGE` for ordinary particles and light ions, or from
+  `FHEAVY` (`ICHEAV`) for heavier fragments transported under FLUKA's generic heavy-ion
+  code `JTRACK = -39` — the same fork the Li scorers already use.
+- **`ALDQ` needs no `IDUSBN` fork.** Compare with `ALDD`, which has to branch on whether
+  the binning is `DOSE` or `DOSE-H2O` because the *material* the LET is judged in changes
+  the answer. Qeff does not care what the binning scores: `ALQD` and `ALDQ` work
+  identically on `DOSE`, `DOSE-H2O`, or any other dose-like generalized particle, with no
+  warning and no restriction.
+
+### Track-averaged and dose-averaged Qeff
+
+Both flavours exist, as for LET, but unlike LET the trick used there (`ALL2/ALL1` for the
+dose average, no dose bin needed) does **not** carry over: it worked because a segment's
+dose *is* `length × LET`, so a second LET moment reproduces the dose weighting for free.
+Qeff carries no such relationship to the energy actually deposited, so the dose-averaged
+flavour has to weight the real dose directly, in `COMSCW`.
+
+Score three co-located bins:
+
+```text
+* Qeff moment, weighted by track length          -> ALQ1  (unit 22)
+USRBIN           11.0  ALL-PART      -22.  <xmax ymax zmax bins...>    ALQ1
+USRBIN         <xmin ymin zmin> ...                                   &
+* unweighted fluence, same particle set          -> ALQF  (unit 21)
+USRBIN           11.0  ALL-PART      -21.  <xmax ymax zmax bins...>    ALQF
+USRBIN         <xmin ymin zmin> ...                                   &
+* dose weighted by Qeff                          -> ALQD  (unit 23)
+USRBIN           10.0      DOSE      -23.  <xmax ymax zmax bins...>    ALQD
+USRBIN         <xmin ymin zmin> ...                                   &
+```
+
+then, paired with an unfiltered `DOSE` bin over the same region:
+
+- **track-averaged Qeff** `= ALQ1 / ALQF`
+- **dose-averaged Qeff** `= ALQD / DOSE`
+
+As always, `ALQF` — not a plain `ALL-PART` bin — is the track-average denominator, for the
+same reason as `ALFL`: it applies exactly the same acceptance as `ALQ1`.
+
+### Dirty dose by Qeff
+
+`ALDQ` is the Qeff analogue of `ALDD`: dose from particles above a threshold, here on Qeff
+rather than on LET.
+
+```text
+* dirty dose, Qeff > 30                          -> ALDQ  (unit 24)
+USRBIN           10.0      DOSE      -24.  <xmax ymax zmax bins...>    ALDQ
+USRBIN         <xmin ymin zmin> ...                                   &
+```
+
+then `dirty fraction = ALDQ / DOSE`, exactly as for `ALDD`.
+
+**On the threshold, 30 (dimensionless):** Qeff and LET are different quantities with
+different units, so their thresholds are independent choices — they cannot, in general,
+be made to agree for every particle and energy. This one was anchored to a proton: at
+30 MeV cm²/g of unrestricted mass stopping power (`ALDD`'s threshold) a proton sits at
+T ≈ 16.9 MeV, β ≈ 0.188, where Qeff ≈ 28.4 (checked against this file's own `ALW1`/`ALWF`
+via `GETLET`). `DQTHRE` is rounded up from that to 30 — slightly *stricter* for protons
+than an exact match would be. The constant is a single named parameter in `COMSCW`
+(`DQTHRE`); changing it means editing one line and recompiling.
+
+As a consistency check, `ALDQ` and `ALDD` were run on the same 160 MeV proton SOBP: the
+resulting dirty-dose fractions track each other closely by depth (e.g. both ≈ 6% at the
+entrance, ≈ 97% at the Bragg peak), with small differences from Bethe's slowly-varying log
+term, which Qeff's pure `1/β²` scaling does not carry. For a heavy fragment the two would
+diverge much more, since Qeff's `z_eff²` dependence and LET's stopping-power `z²`
+dependence are not the same function of energy.
+
 ## A note on ancestry
 
 `LTRACK` gives the generation (1 = source-generation), and the isotope filters classify
@@ -329,8 +456,9 @@ is what `fff` expects. The exact tool names vary between FLUKA distributions (ol
 ## Testing
 
 `tests/` contains a ready-to-run example, `plan01_field01_geoA_SOBPcent.inp`, that
-exercises the scorer keys (proton, light-fragment, and lithium LET moments plus the
-dose/fluence filters). It uses a `SOURCE` reading the accompanying `sobp.dat` spot list,
+exercises the scorer keys (proton, light-fragment, and lithium LET moments, the Qeff
+moments, and the dose/fluence filters). It uses a `SOURCE` reading the accompanying
+`sobp.dat` spot list,
 so the executable must also link the source sampler from `../fluka_source`:
 
 ```bash

@@ -43,8 +43,9 @@
       
 
       DOUBLE PRECISION GETLET
-      DOUBLE PRECISION EKIN, LETW, LETLIN, SUMT, SUMD
+      DOUBLE PRECISION EKIN, LETW, LETLIN, SUMT, SUMD, QEFF
       INTEGER MATLET, IHEAV, II, MWATER
+      LOGICAL LQOK
       CHARACTER*8 SCONAM
 
 C
@@ -817,6 +818,47 @@ C        Unweighted fluence over the accepted particle set.
 
          RETURN
       END IF
+
+C     ==================================================================
+C     Track-averaged Qeff = z_eff^2 / beta^2.
+C
+C     Scorer keys:
+C        ALQ1   Qeff moment, weighted by track length
+C        ALQF   unweighted fluence over the SAME particle set
+C
+C     Post-processing:
+C        track-averaged Qeff = ALQ1 / ALQF
+C
+C     For the DOSE-averaged flavour use ALQD in COMSCW -- there is no
+C     ALQ2/ALQ1 shortcut here. That trick works for LET because a
+C     segment's dose is proportional to length*LET, so a second LET
+C     moment reproduces the dose weighting for free. Qeff carries no such
+C     relation to the deposited energy, so the dose average has to be
+C     taken against the energy FLUKA actually deposits, i.e. in COMSCW.
+C
+C     As always, use ALQF and not a plain ALL-PART bin as the denominator:
+C     it applies exactly the same acceptance as ALQ1, so numerator and
+C     denominator cover the same set by construction.
+C
+C     Qeff needs no material and no stopping-power table, so unlike the
+C     LET keys this branch has one code path for every particle, fragments
+C     included. See QEFCAL at the end of this file.
+C     ==================================================================
+
+      IF ( SCONAM(1:4) .EQ. 'ALQ1' .OR. SCONAM(1:4) .EQ. 'ALQF' ) THEN
+         FLUSCW = ZERZER
+
+         CALL QEFCAL ( QEFF, LQOK )
+         IF ( .NOT. LQOK ) RETURN
+
+         IF ( SCONAM(1:4) .EQ. 'ALQF' ) THEN
+            FLUSCW = ONEONE
+         ELSE
+            FLUSCW = QEFF
+         END IF
+
+         RETURN
+      END IF
 C     ------------------------------------------------------------------
 C     Proton FLUSCW branch for LET and primary-proton fluence scoring.
 C
@@ -1047,9 +1089,9 @@ C=======================================================================
       INCLUDE 'fheavy.inc'
 
       DOUBLE PRECISION GETLET
-      DOUBLE PRECISION EKIN, LETW, SUMT, SUMD, SMASS
+      DOUBLE PRECISION EKIN, LETW, SUMT, SUMD, SMASS, QEFF
       INTEGER IHEAV, II, MATLET, MWATER, IDIST
-      LOGICAL DDWARN
+      LOGICAL DDWARN, LQOK
       CHARACTER*8 SCONAM
 
 C     Dirty-dose LET threshold, as unrestricted mass stopping power.
@@ -1058,6 +1100,18 @@ C     The choice of threshold is discussed in Heuchel et al. 2024 (see the
 C     references at the top of this file); consult it before changing this.
       DOUBLE PRECISION DDTHRE
       PARAMETER ( DDTHRE = 30.0D0 )
+
+C     Dirty-dose Qeff threshold, set to sit close to where DDTHRE falls for
+C     a proton. At 30 MeV cm^2/g of unrestricted mass stopping power a
+C     proton is at T ~ 16.9 MeV (beta ~ 0.188), where Qeff = z_eff^2/beta^2
+C     ~ 28.4 (checked with this file's own ALW1/ALWF, against FLUKA's
+C     GETLET). DQTHRE is rounded up from that to the same 30, which is
+C     deliberately slightly stricter for protons rather than looser; the
+C     exact value is not the point -- Qeff and LET are different
+C     quantities, so the two thresholds can only ever agree for one
+C     species at one energy, not in general.
+      DOUBLE PRECISION DQTHRE
+      PARAMETER ( DQTHRE = 30.0D0 )
 
 C     Generalized-particle codes of the two binnings ALDD accepts.
       INTEGER IDDOSE, IDDH2O
@@ -1235,6 +1289,65 @@ C           undefined. Score nothing and say so, once.
          RETURN
       END IF
 
+C     ==================================================================
+C     Dose-averaged Qeff = z_eff^2 / beta^2.
+C
+C     Scorer key:
+C        ALQD   dose weighted by Qeff
+C
+C     Post-processing:
+C        dose-averaged Qeff = ALQD / (unfiltered dose binning, any
+C                              generalized particle: DOSE, DOSE-H2O, ...)
+C
+C     Unlike ALDD, this needs no fork on the binning's generalized particle
+C     and so places no restriction on which one is used: Qeff has no
+C     material dependency at all (see QEFCAL), so "dose weighted by Qeff"
+C     means the same thing regardless of what dose the binning scores.
+C
+C     Also unlike LET, there is no ALQ2/ALQ1 shortcut to reach this from
+C     track-length quantities -- see the note at ALQ1 in FLUSCW for why.
+C     This scorer weights the actual deposited dose directly, in COMSCW,
+C     which is the only way to obtain the dose-averaged flavour honestly.
+C     ==================================================================
+
+      IF ( ISCRNG .EQ. 1 .AND. SCONAM(1:4) .EQ. 'ALQD' ) THEN
+         COMSCW = ZERZER
+
+         CALL QEFCAL ( QEFF, LQOK )
+         IF ( LQOK ) COMSCW = QEFF
+
+         RETURN
+      END IF
+
+C     ==================================================================
+C     Dirty dose by Qeff threshold.
+C
+C     Scorer key:
+C        ALDQ   dose from particles whose Qeff exceeds DQTHRE
+C
+C     The Qeff analogue of ALDD: same "dose from high-quality particles"
+C     idea, but the accept/reject test is on Qeff = z_eff^2/beta^2 rather
+C     than on LET. See DQTHRE above for how the threshold was set.
+C
+C     Post-processing:
+C        dirty fraction = ALDQ / (unfiltered dose binning)
+C
+C     As with ALQD, no material fork is needed or offered: Qeff is the
+C     same number regardless of the medium, so this works identically on a
+C     DOSE or a DOSE-H2O binning (or any other dose-like generalized
+C     particle) without a warning or a restriction. That is the concrete
+C     payoff of a quality metric with no stopping-power table behind it.
+C     ==================================================================
+
+      IF ( ISCRNG .EQ. 1 .AND. SCONAM(1:4) .EQ. 'ALDQ' ) THEN
+         COMSCW = ZERZER
+
+         CALL QEFCAL ( QEFF, LQOK )
+         IF ( LQOK .AND. QEFF .GT. DQTHRE ) COMSCW = ONEONE
+
+         RETURN
+      END IF
+
 C     ------------------------------------------------------------------
 C     Primary-proton DOSE filter for COMSCW.
 C
@@ -1370,6 +1483,92 @@ C
 C     Both FLUSCW and COMSCW need this, so it lives in one place: the
 C     lookup cannot drift between them, and the log line is printed once.
 C=======================================================================
+C=======================================================================
+C Effective-charge radiation quality Qeff, shared by FLUSCW and COMSCW.
+C=======================================================================
+C
+C     Returns QEFF = z_eff^2 / beta^2 for the particle currently being
+C     transported, and LQOK = .TRUE. if it is meaningful for one.
+C
+C        beta   = v/c
+C        z_eff  = z * ( 1 - exp( -125 * beta * |z|^(-2/3) ) )   (Barkas)
+C        QEFF   = z_eff^2 / beta^2                              (dimensionless)
+C
+C     Unlike LET, this needs no material and no stopping-power table: it is
+C     a function of charge and speed alone. It is therefore valid for every
+C     charged particle FLUKA transports, heavy fragments included, and has
+C     no equivalent of the GETLET coverage gap.
+C
+C     beta is taken as PTRACK/ETRACK (momentum over total energy), which is
+C     exact and needs no rest-mass lookup -- convenient for fragments, whose
+C     mass is not addressable through AM.
+C
+C     z is ICHRGE for ordinary particles and light ions (ICHRGE is indexed
+C     from -6, so deuterons through alphas are covered). Heavier fragments
+C     all arrive under the generic JTRACK = -39 with no charge of their own,
+C     so their z comes from FHEAVY instead.
+C
+C     Guards, all of which set LQOK = .FALSE.:
+C        z = 0            neutral: no charge, no Qeff
+C        beta <= 0        would divide by zero. FLUKA enables FP trapping,
+C                         so this must be tested, not left to the hardware.
+C                         (The limit is finite -- z_eff -> 125*beta*z^(1/3)
+C                         as beta -> 0, so QEFF -> 125^2 * z^(2/3) -- but
+C                         the expression itself is 0/0 there.)
+C        JTRACK > NALLWP  point-like deposition pseudo-particle (208 heavy
+C                         recoil, 211 e/gamma below threshold, 308 low
+C                         energy neutron kerma); TRACKR holds no kinematics
+C                         for these.
+C        electrons and positrons (JTRACK = 3, 4) are excluded, matching the
+C        LET scorers: these quantities describe the hadron/ion field.
+C=======================================================================
+      SUBROUTINE QEFCAL ( QEFF, LQOK )
+
+      INCLUDE 'dblprc.inc'
+      INCLUDE 'dimpar.inc'
+      INCLUDE 'iounit.inc'
+      INCLUDE 'trackr.inc'
+      INCLUDE 'paprop.inc'
+      INCLUDE 'fheavy.inc'
+
+      DOUBLE PRECISION QEFF, BETA, ZEFF, ZABS
+      INTEGER IZ, IHEAV
+      LOGICAL LQOK
+
+      QEFF = ZERZER
+      LQOK = .FALSE.
+
+C     Pseudo-particles carry no kinematics: reject before touching TRACKR
+C     or ICHRGE (the latter is only dimensioned (-6:NALLWP)).
+      IF ( JTRACK .GT. NALLWP ) RETURN
+
+C     Charge.
+      IF ( JTRACK .GE. -6 ) THEN
+         IF ( JTRACK .EQ. 3 .OR. JTRACK .EQ. 4 ) RETURN
+         IZ = ICHRGE(JTRACK)
+      ELSE
+         IF ( NPHEAV .LE. 0 ) RETURN
+         IHEAV = KHEAVY(NPHEAV)
+         IF ( IHEAV .LT. 1 .OR. IHEAV .GT. KXHEAV ) RETURN
+         IZ = ICHEAV(IHEAV)
+      END IF
+      IF ( IZ .EQ. 0 ) RETURN
+
+C     Speed.
+      IF ( ETRACK .LE. ZERZER ) RETURN
+      BETA = PTRACK / ETRACK
+      IF ( BETA .LE. ZERZER ) RETURN
+
+      ZABS = DBLE( ABS( IZ ) )
+      ZEFF = DBLE( IZ ) *
+     &       ( ONEONE - EXP( -1.25D+02 * BETA * ZABS**(-TWOTHI) ) )
+
+      QEFF = ( ZEFF * ZEFF ) / ( BETA * BETA )
+      LQOK = .TRUE.
+
+      RETURN
+*=== End of subroutine Qefcal =========================================*
+      END
       SUBROUTINE LETMWA ( MWATER )
 
       INCLUDE 'dblprc.inc'
