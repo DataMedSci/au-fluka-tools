@@ -1,10 +1,23 @@
 * FLUKA LET scoring routines for averaged LET-moment scoring
 *======================================================================
 *
-* Reference:
+* References:
+*
+* Averaged LET (the LET-moment scorers):
 * Kalholm F, Grzanka L, Traneus E, Bassler N. A systematic review on
 * the usage of averaged LET in radiation biology for particle therapy.
 * Radiotherapy and Oncology. 2021 Aug 1;161:211-21.
+*
+* Dirty dose (the ALDD scorer):
+* Heuchel L, Hahn C, Oeden J, Traneus E, Wulff J, Timmermann B,
+* Baeumer C, Luehr A. The dirty and clean dose concept: towards creating
+* proton therapy treatment plans with a photon-like dose response.
+* Medical Physics. 2024 Jan;51(1):622-36.
+*   -- introduces the concept, and discusses the choice of threshold.
+*
+* Kalholm F, Toma-Dasu I, Traneus E. 'Dirty dose'-based proton variable
+* RBE models - performance assessment on in vitro data.
+* Medical Physics. 2025 Feb;52(2):1311-22.
 *
 * This file implements FLUSCW and COMSCW scoring weights for LET-moment,
 * fluence-filter, and dose-filter scorers.
@@ -35,10 +48,11 @@
       CHARACTER*8 SCONAM
 
 C
-C     Water-equivalent material index for the water-reference scorers
-C     (PAW1/PAW2, P1W1/P1W2, ALW1/ALW2/ALWF, ALWD). Resolved once by
-C     LETMWA; see that routine for how. There are no hardcoded material
-C     numbers anywhere in this file.
+C     Water-equivalent material index for the water-reference scorers:
+C     PAW1/PAW2, P1W1/P1W2 and ALW1/ALW2/ALWF here in FLUSCW, plus ALDD on
+C     a DOSE-H2O binning over in COMSCW. Resolved once by LETMWA; see that
+C     routine for how. There are no hardcoded material numbers anywhere in
+C     this file.
 C
 C     Local-material scorers use MEDFLK(NREG,1) directly, i.e. LET is
 C     evaluated in whatever material the particle is currently in.
@@ -1040,6 +1054,8 @@ C=======================================================================
 
 C     Dirty-dose LET threshold, as unrestricted mass stopping power.
 C     30 MeV cm^2/g == 3 keV/um in water (rho = 1 g/cm^3).
+C     The choice of threshold is discussed in Heuchel et al. 2024 (see the
+C     references at the top of this file); consult it before changing this.
       DOUBLE PRECISION DDTHRE
       PARAMETER ( DDTHRE = 30.0D0 )
 
@@ -1188,7 +1204,12 @@ C           Dose to water: judge LET in water, at the same kinetic energy.
             END IF
 
 C           COMSCW is not passed the momentum, so take the kinetic energy
-C           from TRACKR. AM is indexed from -6, so AM(JTRACK) is valid for
+C           from TRACKR. ETRACK is the TOTAL energy (rest + kinetic), per
+C           the FLUKA manual, hence the rest-mass subtraction -- do NOT
+C           "simplify" this to EKIN = ETRACK. Sanity check: a 160.36 MeV
+C           beam proton reports ETRACK ~ 1.0877 GeV, i.e. 0.9383 rest +
+C           0.149 kinetic; read as kinetic it would exceed the beam energy
+C           sevenfold. AM is indexed from -6, so AM(JTRACK) is valid for
 C           the light ions accepted above as well as for protons.
             EKIN = ETRACK - AM(JTRACK)
             IF ( EKIN .LE. 1.0D-09 ) RETURN

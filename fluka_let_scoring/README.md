@@ -7,9 +7,18 @@ in post-processing.
 These are **user routines**, not a standalone program. You link them into a custom FLUKA
 executable, then activate them from your input file with a `USERWEIG` card.
 
-Reference: Kalholm F, Grzanka L, Traneus E, Bassler N. *A systematic review on the usage
-of averaged LET in radiation biology for particle therapy.* Radiotherapy and Oncology.
-2021;161:211-21.
+References:
+
+- Averaged LET (the LET-moment scorers): Kalholm F, Grzanka L, Traneus E, Bassler N.
+  *A systematic review on the usage of averaged LET in radiation biology for particle
+  therapy.* Radiotherapy and Oncology. 2021;161:211-21.
+- Dirty dose (the `ALDD` scorer): Heuchel L, Hahn C, Ödén J, Traneus E, Wulff J,
+  Timmermann B, Bäumer C, Lühr A. *The dirty and clean dose concept: towards creating
+  proton therapy treatment plans with a photon-like dose response.* Medical Physics.
+  2024;51(1):622-36. Introduces the concept, and discusses the choice of threshold.
+- Dirty dose applied to RBE: Kalholm F, Toma-Dasu I, Traneus E. *'Dirty dose'-based proton
+  variable RBE models — performance assessment on in vitro data.* Medical Physics.
+  2025;52(2):1311-22.
 
 ## Quick start
 
@@ -236,7 +245,13 @@ scorer, which includes secondary protons too.
 Dirty dose is the dose deposited by particles whose LET exceeds a threshold — here
 **30 MeV cm²/g** of unrestricted mass stopping power, equivalently **3 keV/µm in water**.
 It answers "how much of this dose was delivered by high-LET particles?", and pairs
-naturally with the LET scorers above.
+naturally with the LET scorers above. Heuchel et al. (2024) introduce the dirty/clean dose
+concept and its use in planning for a photon-like dose response, **and discuss the choice
+of threshold** — read it before changing the value. Kalholm et al. (2025) assess
+dirty-dose-based variable-RBE models against in vitro data.
+
+The threshold is the `DDTHRE` parameter in `COMSCW`, in MeV cm²/g; it is a single named
+constant, so changing it means editing one line and recompiling.
 
 Score it with `ALDD` plus an unfiltered bin of the same generalized particle:
 
