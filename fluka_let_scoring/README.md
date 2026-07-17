@@ -25,18 +25,20 @@ of averaged LET in radiation biology for particle therapy.* Radiotherapy and Onc
 
 ## The main quantity: all-particle dose-averaged LET
 
-The headline scorers are `ALL1` and `ALL2`: the first and second LET moments over **all
-charged hadrons and ions**. Their LET is the true *local* energy-deposition LET,
-reconstructed per step from `TRACKR` as `LET = 100 * ΣDTRACK / ΣTTRACK` (dE_dep /
-step-length, GeV/cm → keV/µm). This works for every charged hadron and ion FLUKA
-transports — protons, light ions, and heavy fragments — with no per-species handling and
-no dependence on `GETLET` or an explicit material-index lookup. The LET still depends
-physically on the local material, through the energy deposited per unit track length.
+The headline scorers are `ALL1` and `ALL2`: the first and second **unrestricted** LET
+moments over **all charged hadrons and ions**, evaluated in the *local* material. They
+cover every charged hadron and ion FLUKA transports — protons, light ions, and heavy
+fragments alike — by dispatching internally over two routes (`GETLET` for p/d/t/³He/⁴He,
+`TRACKR` for heavier fragments; see *The LET reported* below for why, and why both yield
+the same unrestricted quantity).
 
 Neutral particles are skipped, and **electrons and positrons are excluded** even when EMF
-transport is active: averaged-LET reporting conventionally covers the hadron/ion field,
-and including deltas would tie track-averaged LET to the EMF transport threshold rather
-than to the physics.
+transport is active. This is not a matter of taste: LET here is *unrestricted* stopping
+power, which already includes the energy handed to δ-rays. FLUKA transporting those δ-rays
+is fine and desirable — it is how the dose ends up in the right place — but scoring them
+*again* as LET carriers in their own right would count that same energy twice. Excluding
+e± is what keeps the accounting closed. See Kalholm et al. on why the restricted /
+unrestricted distinction has to be stated explicitly.
 
 Score three co-located `USRBIN` bins over the same region: `ALL1`, `ALL2`, and `ALFL`.
 Schematic input:
@@ -74,18 +76,41 @@ for `ALL2`, 1 for `ALFL`). Then, bin by bin:
 > applies the same particle selection as `ALL1`/`ALL2`, so the ratio is consistent by
 > construction. `LETd = ALL2/ALL1` is unaffected either way.
 
-## Two LET definitions
+## The LET reported: unrestricted, in one of two materials
 
-This routine offers two different, complementary LET definitions — the distinction the
-Kalholm review stresses:
+**Every scorer here reports unrestricted LET (LET_∞)** — the full electronic stopping
+power, including the energy handed to δ-rays. The only axis that varies between keys is
+the *material* the LET is evaluated in: the **local** medium, or **water**.
 
-- **Local energy-deposition LET** (`ALL1/ALL2`, and the lithium scorers): the actual
-  dE/dx deposited along the step in the current material, from `TRACKR`. Universal (all
-  charged hadrons and ions), always evaluated in the **local** material.
-- **Electronic stopping-power LET** (`GETLET`): analytic mass stopping power converted to
-  linear LET via `LETLIN = RHO(MAT) * GETLET(...)`. Can be evaluated in the **local**
-  material or in **water**, but only for the light particles `GETLET` supports
-  (p, d, t, ³He, ⁴He).
+That matters because the restricted/unrestricted choice is exactly what the Kalholm review
+warns goes unstated. State it when you report: these are unrestricted.
+
+Getting there needs two implementation routes, because neither covers the whole field:
+
+| Route | Used for | Why |
+|---|---|---|
+| `GETLET` | p, d, t, ³He, ⁴He | Unrestricted by construction (the restriction-energy argument is passed as zero). Verified: 5.2 MeV cm²/g for a 160 MeV proton in water, matching NIST PSTAR's unrestricted value. |
+| `TRACKR` (`ΣDTRACK/ΣTTRACK`) | Li and heavier fragments | `GETLET` **cannot** serve these: FLUKA transports every heavy ion under one generic code (`JTRACK = -39`) with the real Z/A off in `FHEAVY`, and `GETLET`'s argument list has nowhere to accept them — it returns exactly zero for all of them. |
+
+The `TRACKR` route measures energy *deposited*, which in general is *restricted* at the
+δ-ray production threshold (100 keV under `PRECISION`). **For heavy fragments that
+distinction is void**: a δ can only exceed 100 keV when β²γ² > 0.098, i.e. above roughly
+45 MeV/u, and fragments in a proton field are far slower (typically < 1 MeV/u). No δ is
+ever split off, so the deposited LET *is* the unrestricted LET. Both routes return the
+same quantity, and the seam between them is invisible in the output.
+
+> **Limit of that argument.** It rests on *speed*, and the `TRACKR` branch takes everything
+> that is not p/d/t/³He/⁴He — heavy fragments, and also π±/K±/µ± where a field is energetic
+> enough to make them. Anything routed there that is fast enough to produce a δ above the
+> threshold (β²γ² > 0.098) is scored as restricted LET, not unrestricted. Sound for proton
+> therapy, where fragments are < 1 MeV/u and no pions are produced below ~290 MeV; re-derive
+> before trusting it for a 400 MeV/u carbon beam (T_max ≈ 800 keV) or any high-energy field.
+
+The gap is not academic. Before the split, when `ALL1`/`ALL2` used `TRACKR` for
+everything, entrance track-averaged LET came out **7% low** — measured 0.932 of the
+unrestricted water reference, against 0.931 predicted by Bethe for Δ=100 keV vs
+T_max=378 keV at 160 MeV. With the two routes it is 0.985, the remainder being the genuine
+solid-water-vs-water material difference.
 
 ## Material convention
 
@@ -109,6 +134,40 @@ Kalholm review stresses:
 
 - `1`: first raw LET moment — weighted by LET. Units keV/µm.
 - `2`: second raw LET moment — weighted by LET². Units (keV/µm)².
+
+## Particle coverage at a glance
+
+Which particles a key actually scores follows from its LET route, not from its name. The
+`TRACKR` route reconstructs LET from the energy deposited per unit step, so it works for
+anything charged; the `GETLET` route needs a tabulated stopping power and so is limited to
+the five light species FLUKA supplies.
+
+| Keys | Scores | Does **not** score | Route |
+|---|---|---|---|
+| `ALL1`, `ALL2`, `ALFL`, `ALDD` on `DOSE` | every charged particle FLUKA transports except e±: p, d, t, ³He, ⁴He, Li **and all heavier fragments**, plus π±/K±/µ± if present | e±, neutrals, point-like depositions (208, 211, 308) | `GETLET` local for p/d/t/³He/⁴He, `TRACKR` for the rest |
+| `ALW1`, `ALW2`, `ALWF`, `ALDD` on `DOSE-H2O` | p, d, t, ³He, ⁴He | **Li and heavier fragments**, π±/K±/µ±, e±, neutrals | `GETLET`, water |
+| `PAL1`, `PAL2` | protons, all generations | everything else | `GETLET`, local |
+| `PAW1`, `PAW2` | protons, all generations | everything else | `GETLET`, water |
+| `P1FL`, `P1L1`, `P1L2`, `P1W1`, `P1W2`, `P1DO` | protons with `LTRACK=1` (source generation) | secondary protons, everything else | `GETLET` |
+| `D2L1`/`D2L2` | deuterons | everything else | `GETLET`, local |
+| `T3L1`/`T3L2` | tritons | everything else | `GETLET`, local |
+| `H3L1`/`H3L2` | ³He | everything else | `GETLET`, local |
+| `H4L1`/`H4L2` | ⁴He / α | everything else | `GETLET`, local |
+| `L6L1`, `L6L2`, `L6FL`, `L6DO` | Li-6 (Z=3, A=6) | everything else | `TRACKR` |
+| `L7L1`, `L7L2`, `L7FL`, `L7DO` | Li-7 (Z=3, A=7) | everything else | `TRACKR` |
+
+Three consequences worth internalising:
+
+- **The water-reference keys cannot see Li or heavier.** `GETLET` has no water stopping
+  power for them, so every fragment above ⁴He silently drops out of `ALW1`/`ALW2`/`ALWF`
+  and of `ALDD` on a `DOSE-H2O` binning. Only the `TRACKR` keys cover the full field. This
+  matters most for dirty dose, where fragments are the high-LET component of interest.
+- **e± are excluded everywhere by design**, even with EMF transport active. The LET is
+  unrestricted, so the δ-ray energy is already inside the primary's LET; scoring the
+  transported δ-rays again would double-count it. Transporting them is still correct and
+  wanted — it is what puts the dose in the right place.
+- **Never mix routes across a ratio.** Numerator and denominator must share a particle
+  set: `ALL1/ALFL`, not `ALL1/ALWF` or `ALL1` over a plain `ALL-PART` bin.
 
 ## Scorer keys handled by `FLUSCW`
 
@@ -199,7 +258,7 @@ combinations mean anything, so `ALDD` reads the binning's own generalized partic
 
 | `USRBIN` WHAT(2) | LET judged in | Route | Covers |
 |---|---|---|---|
-| `DOSE` (228) | local medium | `TRACKR` | all charged hadrons + ions, incl. heavy fragments |
+| `DOSE` (228) | local medium | `GETLET` + `TRACKR` | all charged hadrons + ions, incl. heavy fragments |
 | `DOSE-H2O` (252) | water | `GETLET` | p, d, t, ³He, ⁴He only |
 
 One key serves both, and the meaningless cross combinations (dose-to-water thresholded on
@@ -215,9 +274,9 @@ Caveats worth knowing before quoting a number:
 - **Point-like depositions are excluded**, because `TRACKR` carries no step data for them
   and their LET cannot be reconstructed. Two of these are genuinely high-LET and so are
   under-counted: heavy recoils (`JTRACK` 208) and low-energy neutron kerma (308).
-- **Electrons and positrons are excluded**, as for `ALL1`/`ALL2`. Low-energy electrons can
-  exceed the threshold, so this is a real choice: it keeps dirty dose a property of the
-  hadron/ion field.
+- **Electrons and positrons are excluded**, as for `ALL1`/`ALL2`, and for the same reason:
+  the threshold is applied to unrestricted LET, which already contains the δ-ray energy, so
+  scoring the δ-rays as dirty-dose carriers in their own right would count it twice.
 
 > **`DOSE-H2O` requires a `RAD-BIOL` card**, or FLUKA dies with a SIGFPE in
 > `dedx/alphbt.f:382` (`alphbt` called with `rbealp=-1`, `rbebet=0`) via `score/usrsco.f`

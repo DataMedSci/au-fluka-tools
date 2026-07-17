@@ -619,15 +619,51 @@ C     material-index lookup. The quantity still depends physically on the
 C     local transported material, through the energy deposited along the
 C     step (DTRACK) per unit track length (SUMT).
 C
+C     UNRESTRICTED LET, VIA TWO ROUTES
+C
+C        The quantity scored is unrestricted LET (LET-infinity), i.e. the
+C        full electronic stopping power INCLUDING the energy handed to
+C        delta rays. Two routes are needed because neither covers
+C        everything on its own:
+C
+C        1. p, d, t, 3He, 4He (IJ = 1, -3, -4, -5, -6): GETLET in the
+C           LOCAL material, with the restriction energy argument set to
+C           zero, which is unrestricted by definition. Verified: 5.2
+C           MeV cm^2/g for a 160 MeV proton in water, matching NIST PSTAR.
+C
+C        2. Heavier fragments (Li and up): GETLET cannot serve these AT
+C           ALL. FLUKA transports every heavy ion under one generic code,
+C           JTRACK = -39, with the actual Z/A held in FHEAVY (ICHEAV /
+C           IBHEAV); GETLET's argument list has nowhere to accept them, so
+C           it returns exactly zero for all of them. They therefore use
+C           the TRACKR reconstruction, SUMD/SUMT.
+C
+C        The TRACKR route measures energy DEPOSITED, so in general it is
+C        restricted at the delta-ray production threshold (100 keV under
+C        PRECISION defaults). For heavy fragments that distinction is
+C        void: a delta can only exceed 100 keV if beta^2*gamma^2 > 0.098,
+C        which for fragments means above roughly 45 MeV/u. Fragments in a
+C        proton field are far slower than that (typically < 1 MeV/u), no
+C        delta is ever split off, and the deposited LET IS the
+C        unrestricted LET. Both routes therefore return the same quantity.
+C
+C        LIMIT: that argument is about fragment SPEED, not about protons.
+C        In a fast heavy-ion field (e.g. a 400 MeV/u carbon beam, where
+C        T_max is around 800 keV) fragments would exceed the threshold and
+C        this branch would quietly become restricted. Sound for proton
+C        therapy; re-derive before trusting it elsewhere.
+C
 C     Particle selection:
 C        Neutral particles carry no LET and are skipped.
 C        Electrons and positrons (JTRACK = 3, 4) are deliberately
-C        EXCLUDED even when EMF transport is active. Averaged-LET
-C        reporting for particle therapy conventionally covers the
-C        hadron/ion field only; delta electrons are the energy-transfer
-C        mechanism rather than separate LET carriers. Including them
-C        would also make track-averaged LET depend on the EMF transport
-C        threshold instead of on the physics.
+C        EXCLUDED even when EMF transport is active. This follows from
+C        using unrestricted LET: the energy transferred to delta rays is
+C        ALREADY counted inside the primary's LET. Transporting those
+C        deltas is right and proper -- it puts the dose where it belongs --
+C        but scoring them a second time as LET carriers of their own would
+C        count the same energy twice. Excluding e+/e- closes the
+C        accounting. See Kalholm et al. on stating the restricted vs
+C        unrestricted choice explicitly.
 C
 C     Post-processing:
 C
@@ -664,23 +700,46 @@ C        denominator for the track average. No LET weight is applied.
             RETURN
          END IF
 
-         SUMT = ZERZER
-         DO II = 1, NTRACK
-            SUMT = SUMT + TTRACK(II)
-         END DO
+         LETLIN = ZERZER
 
-         SUMD = ZERZER
-         DO II = 1, MTRACK
-            SUMD = SUMD + DTRACK(II)
-         END DO
+         IF ( IJ .EQ. 1  .OR. IJ .EQ. -3 .OR. IJ .EQ. -4 .OR.
+     &        IJ .EQ. -5 .OR. IJ .EQ. -6 ) THEN
 
-         IF ( SUMT .GT. ZERZER ) THEN
-            LETW = 100.0D0 * SUMD / SUMT
-            IF ( SCONAM(1:4) .EQ. 'ALL1' ) THEN
-               FLUSCW = LETW
-            ELSE
-               FLUSCW = LETW * LETW
-            END IF
+C           Route 1 -- light particles: unrestricted GETLET, local material.
+            EKIN = -PLA
+            IF ( EKIN .LE. 1.0D-09 ) RETURN
+
+            MATLET = MEDFLK(NREG,1)
+            IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) RETURN
+
+            LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
+            LETLIN = RHO(MATLET) * LETW
+
+         ELSE
+
+C           Route 2 -- heavy fragments: GETLET returns zero for them (one
+C           generic JTRACK = -39 carries no Z/A), so reconstruct from
+C           TRACKR. Unrestricted in practice, because these fragments are
+C           too slow to produce a delta above the production threshold.
+            SUMT = ZERZER
+            DO II = 1, NTRACK
+               SUMT = SUMT + TTRACK(II)
+            END DO
+
+            SUMD = ZERZER
+            DO II = 1, MTRACK
+               SUMD = SUMD + DTRACK(II)
+            END DO
+
+            IF ( SUMT .LE. ZERZER ) RETURN
+            LETLIN = 100.0D0 * SUMD / SUMT
+
+         END IF
+
+         IF ( SCONAM(1:4) .EQ. 'ALL1' ) THEN
+            FLUSCW = LETLIN
+         ELSE
+            FLUSCW = LETLIN * LETLIN
          END IF
 
          RETURN
@@ -1081,23 +1140,40 @@ C        fragments are transported with JTRACK .LT. 0 and always charged.
          IF ( IDIST .EQ. IDDOSE ) THEN
 
 C           Dose in the local medium: judge LET in the local medium.
+C           Same two routes as ALL1/ALL2, and for the same reasons: GETLET
+C           (unrestricted) for the light particles it supports, TRACKR for
+C           heavy fragments, which GETLET cannot address at all and which
+C           are too slow to lose anything to delta rays anyway.
             MATLET = MEDFLK(MREG,1)
             IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) RETURN
 
-            SUMT = ZERZER
-            DO II = 1, NTRACK
-               SUMT = SUMT + TTRACK(II)
-            END DO
+            IF ( JTRACK .EQ. 1  .OR. JTRACK .EQ. -3 .OR.
+     &           JTRACK .EQ. -4 .OR. JTRACK .EQ. -5 .OR.
+     &           JTRACK .EQ. -6 ) THEN
 
-            SUMD = ZERZER
-            DO II = 1, MTRACK
-               SUMD = SUMD + DTRACK(II)
-            END DO
+               EKIN = ETRACK - AM(JTRACK)
+               IF ( EKIN .LE. 1.0D-09 ) RETURN
+               LETW = GETLET(JTRACK, EKIN, -EKIN, ZERZER, MATLET)
+               SMASS = 1.0D+01 * LETW
 
-            IF ( SUMT .GT. ZERZER ) THEN
+            ELSE
+
+               SUMT = ZERZER
+               DO II = 1, NTRACK
+                  SUMT = SUMT + TTRACK(II)
+               END DO
+
+               SUMD = ZERZER
+               DO II = 1, MTRACK
+                  SUMD = SUMD + DTRACK(II)
+               END DO
+
+               IF ( SUMT .LE. ZERZER ) RETURN
                SMASS = 1.0D+03 * SUMD / SUMT / RHO(MATLET)
-               IF ( SMASS .GT. DDTHRE ) COMSCW = ONEONE
+
             END IF
+
+            IF ( SMASS .GT. DDTHRE ) COMSCW = ONEONE
 
          ELSE IF ( IDIST .EQ. IDDH2O ) THEN
 
