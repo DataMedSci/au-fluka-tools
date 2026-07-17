@@ -38,32 +38,41 @@ transport is active: averaged-LET reporting conventionally covers the hadron/ion
 and including deltas would tie track-averaged LET to the EMF transport threshold rather
 than to the physics.
 
-Score three co-located `USRBIN` bins over the same region: an ordinary (unweighted)
-track-length fluence, plus `ALL1` and `ALL2`. Schematic input:
+Score three co-located `USRBIN` bins over the same region: `ALL1`, `ALL2`, and `ALFL`.
+Schematic input:
 
 ```text
 * userweig: call FLUSCW (WHAT(3)=1)
 USERWEIG          0.0       0.0       1.0                              &
 *
-* unweighted all-particle track-length fluence  -> Phi   (unit 21)
-USRBIN           11.0  ALL-PART      -21.  <xmax ymax zmax bins...>    PHI
-USRBIN         <xmin ymin zmin> ...                                   &
 * first LET moment   (weight = LET)             -> ALL1  (unit 22)
 USRBIN           11.0  ALL-PART      -22.  <xmax ymax zmax bins...>    ALL1
 USRBIN         <xmin ymin zmin> ...                                   &
 * second LET moment  (weight = LET^2)           -> ALL2  (unit 23)
 USRBIN           11.0  ALL-PART      -23.  <xmax ymax zmax bins...>    ALL2
 USRBIN         <xmin ymin zmin> ...                                   &
+* unweighted fluence, same particle set         -> ALFL  (unit 21)
+USRBIN           11.0  ALL-PART      -21.  <xmax ymax zmax bins...>    ALFL
+USRBIN         <xmin ymin zmin> ...                                   &
 ```
 
-`FLUSCW` multiplies each track segment by the returned weight (1 for the unweighted bin,
-LET for `ALL1`, LET² for `ALL2`). Then, bin by bin:
+All three bins use the `ALL-PART` generalized particle; `FLUSCW` does the actual particle
+selection, and multiplies each track segment by the returned weight (LET for `ALL1`, LET²
+for `ALL2`, 1 for `ALFL`). Then, bin by bin:
 
 - **dose-averaged LET**  `LETd = ALL2 / ALL1`
-- **track-averaged LET** `LETt = ALL1 / Phi`
+- **track-averaged LET** `LETt = ALL1 / ALFL`
 
 (`ALL2/ALL1` needs no separate fluence bin, because a segment's dose contribution is
 ∝ length·LET, so the dose-weighted mean of LET is `Σ(ℓ·LET·LET)/Σ(ℓ·LET)`.)
+
+> **Use `ALFL`, not a plain unweighted `ALL-PART` bin, as the track-average denominator.**
+> A plain `ALL-PART` bin gets no `FLUSCW` filtering and so counts neutrons, photons and
+> electrons — none of which contribute to the `ALL1` numerator. Dividing by it
+> underestimates `LETt` (~3% at entrance in `tests/`, and unboundedly past the distal
+> edge, where the neutral fluence is non-zero while `ALL1` is exactly zero). `ALFL`
+> applies the same particle selection as `ALL1`/`ALL2`, so the ratio is consistent by
+> construction. `LETd = ALL2/ALL1` is unaffected either way.
 
 ## Two LET definitions
 
@@ -109,8 +118,10 @@ All-particle (recommended starting point):
 |---|---|---|---|---|
 | `ALL1` | all-particle LET moment | charged hadrons + ions (no e±) | local | LET |
 | `ALL2` | all-particle LET² moment | charged hadrons + ions (no e±) | local | LET² |
+| `ALFL` | all-particle fluence (`ALL1`/`ALL2` denominator) | charged hadrons + ions (no e±) | — | 1 |
 | `ALW1` | all-particle water LET moment | p, d, t, ³He, ⁴He | water | LET |
 | `ALW2` | all-particle water LET² moment | p, d, t, ³He, ⁴He | water | LET² |
+| `ALWF` | water fluence (`ALW1`/`ALW2` denominator) | p, d, t, ³He, ⁴He | — | 1 |
 
 Protons:
 

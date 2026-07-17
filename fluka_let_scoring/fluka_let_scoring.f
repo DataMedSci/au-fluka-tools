@@ -638,6 +638,7 @@ C
 C     Scorer keys:
 C        ALL1   first  LET moment  [keV/um]
 C        ALL2   second LET moment  [(keV/um)^2]
+C        ALFL   unweighted fluence over the SAME particle set
 C
 C     LET here is the true LOCAL energy-deposition LET of the currently
 C     transported charged particle, reconstructed from TRACKR step data:
@@ -661,14 +662,24 @@ C        mechanism rather than separate LET carriers. Including them
 C        would also make track-averaged LET depend on the EMF transport
 C        threshold instead of on the physics.
 C
-C     Post-processing (pair with the matching unweighted fluence scorer,
-C     e.g. an ordinary track-length USRBIN of the same particle set):
+C     Post-processing:
 C
 C        dose-averaged LET  = ALL2 / ALL1
-C        track-averaged LET = ALL1 / (unweighted fluence)
+C        track-averaged LET = ALL1 / ALFL
+C
+C     ALFL is the correct denominator for the track average and returns
+C     ONEONE for exactly the particles ALL1/ALL2 accept, so numerator and
+C     denominator cover the same particle set by construction.
+C
+C     Do NOT use a plain ALL-PART track-length USRBIN as the denominator.
+C     The ALL-PART generalized particle counts neutrons, photons and
+C     electrons, none of which contribute to the ALL1 numerator, so that
+C     ratio underestimates the track-averaged LET. (ALL2/ALL1 is immune,
+C     since both moments share this particle selection.)
 C     ==================================================================
 
-      IF ( SCONAM(1:4) .EQ. 'ALL1' .OR. SCONAM(1:4) .EQ. 'ALL2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'ALL1' .OR. SCONAM(1:4) .EQ. 'ALL2' .OR.
+     &     SCONAM(1:4) .EQ. 'ALFL' ) THEN
          FLUSCW = ZERZER
 
 C        Skip neutral particles (regular particles with zero charge) and
@@ -677,6 +688,13 @@ C        are transported with JTRACK .LT. 0 and are always charged.
          IF ( JTRACK .GT. 0 ) THEN
             IF ( ICHRGE(JTRACK) .EQ. 0 ) RETURN
             IF ( JTRACK .EQ. 3 .OR. JTRACK .EQ. 4 ) RETURN
+         END IF
+
+C        Unweighted fluence over the accepted particle set: the matching
+C        denominator for the track average. No LET weight is applied.
+         IF ( SCONAM(1:4) .EQ. 'ALFL' ) THEN
+            FLUSCW = ONEONE
+            RETURN
          END IF
 
          SUMT = ZERZER
@@ -708,6 +726,16 @@ C
 C     Scorer keys:
 C        ALW1   first  LET moment  [keV/um], LET evaluated in water
 C        ALW2   second LET moment  [(keV/um)^2], LET evaluated in water
+C        ALWF   unweighted fluence over the SAME particle set
+C
+C     Post-processing, exactly as for the ALL family:
+C        dose-averaged LET  = ALW2 / ALW1
+C        track-averaged LET = ALW1 / ALWF
+C
+C     ALWF, not a plain ALL-PART bin, is the denominator for the track
+C     average: the ALW particle set is narrower still (light particles
+C     only), so an ALL-PART denominator would be wrong by a larger margin
+C     here than for the ALL family.
 C
 C     Water-reference LET is available through GETLET only for the light
 C     particles it supports: proton, deuteron, triton, He-3, He-4
@@ -717,7 +745,8 @@ C     in the water-reference variant. Use ALL1/ALL2 for the complete
 C     all-particle (local) quantity.
 C     ==================================================================
 
-      IF ( SCONAM(1:4) .EQ. 'ALW1' .OR. SCONAM(1:4) .EQ. 'ALW2' ) THEN
+      IF ( SCONAM(1:4) .EQ. 'ALW1' .OR. SCONAM(1:4) .EQ. 'ALW2' .OR.
+     &     SCONAM(1:4) .EQ. 'ALWF' ) THEN
          FLUSCW = ZERZER
 
          IF ( MWATER .LE. 0 ) RETURN
@@ -729,6 +758,12 @@ C     ==================================================================
 
          EKIN = -PLA
          IF ( EKIN .LE. 1.0D-09 ) THEN
+            RETURN
+         END IF
+
+C        Unweighted fluence over the accepted particle set.
+         IF ( SCONAM(1:4) .EQ. 'ALWF' ) THEN
+            FLUSCW = ONEONE
             RETURN
          END IF
 
