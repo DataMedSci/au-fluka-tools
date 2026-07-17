@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/grzanka/au-fluka-tools.svg?branch=master)](https://travis-ci.org/grzanka/au-fluka-tools)
+[![CI](https://github.com/DataMedSci/au-fluka-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/DataMedSci/au-fluka-tools/actions/workflows/ci.yml)
 
 ## AUFLUKATOOLS ##
 Provides auxiliary tools for the Monte Carlo particle transport code FLUKA (www.fluka.org).
