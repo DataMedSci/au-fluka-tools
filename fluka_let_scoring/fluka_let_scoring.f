@@ -32,56 +32,23 @@
       DOUBLE PRECISION GETLET
       DOUBLE PRECISION EKIN, LETW, LETLIN, SUMT, SUMD
       INTEGER MATLET, IHEAV, II, MWATER
-      LOGICAL LETFRS
       CHARACTER*8 SCONAM
 
 C
-C     Water-equivalent material index for the water-reference LET
-C     scorers (PAW1/PAW2, P1W1/P1W2, ALW1/ALW2). Resolved once, on the
-C     first scoring call, into MWATER. There are no hardcoded material
-C     numbers anywhere in this routine.
+C     Water-equivalent material index for the water-reference scorers
+C     (PAW1/PAW2, P1W1/P1W2, ALW1/ALW2/ALWF, ALWD). Resolved once by
+C     LETMWA; see that routine for how. There are no hardcoded material
+C     numbers anywhere in this file.
 C
 C     Local-material scorers use MEDFLK(NREG,1) directly, i.e. LET is
 C     evaluated in whatever material the particle is currently in.
 C     Water-reference scorers use MWATER instead.
 C
-C     MWATER is resolved as:
-C        1. MATQLT -- FLUKA's built-in "extra water material for Q(L)
-C           calculations" (flkmat.inc). This exists for dose-equivalent
-C           / quality-factor scoring and is available even when the
-C           input deck defines no explicit WATER material.
-C        2. otherwise, the first material named 'WATER' in MATNAM.
-C        3. otherwise MWATER stays .LE. 0 and the water-reference
-C           scorers return zero (a warning is written to LUNOUT).
-C
-C     The resolved value is written to the FLUKA output (LUNOUT) on the
-C     first scoring call so it can be verified.
-C
-      SAVE MWATER, LETFRS
-      DATA MWATER / -1 /
-      DATA LETFRS / .TRUE. /
-
-
       FLUSCW = ONEONE
       LSCZER = .FALSE.
       SCONAM = TRIM(ADJUSTL(TITUSB(JSCRNG)))
 
-      IF ( LETFRS ) THEN
-         MWATER = MATQLT
-         IF ( MWATER .LE. 0 ) THEN
-            DO II = 1, NMAT
-               IF ( MWATER .LE. 0 .AND.
-     &              MATNAM(II)(1:5) .EQ. 'WATER' ) MWATER = II
-            END DO
-         END IF
-         IF ( MWATER .LE. 0 ) THEN
-            WRITE(LUNOUT,*) ' fluka_let_scoring: WARNING no WATER',
-     &                      ' material found; water scorers return 0'
-         ELSE
-            WRITE(LUNOUT,*) ' fluka_let_scoring: water MWATER =', MWATER
-         END IF
-         LETFRS = .FALSE.
-      END IF
+      CALL LETMWA ( MWATER )
 
 C
 C     Scorer-key naming convention:
@@ -1001,15 +968,175 @@ C=======================================================================
       INCLUDE 'iounit.inc'
       INCLUDE 'scohlp.inc'
       INCLUDE 'usrbin.inc'
+      INCLUDE 'flkmat.inc'
       INCLUDE 'trackr.inc'
+      INCLUDE 'paprop.inc'
       INCLUDE 'fheavy.inc'
 
-      INTEGER IHEAV
+      DOUBLE PRECISION GETLET
+      DOUBLE PRECISION EKIN, LETW, SUMT, SUMD, SMASS
+      INTEGER IHEAV, II, MATLET, MWATER, IDIST
+      LOGICAL DDWARN
       CHARACTER*8 SCONAM
+
+C     Dirty-dose LET threshold, as unrestricted mass stopping power.
+C     30 MeV cm^2/g == 3 keV/um in water (rho = 1 g/cm^3).
+      DOUBLE PRECISION DDTHRE
+      PARAMETER ( DDTHRE = 30.0D0 )
+
+C     Generalized-particle codes of the two binnings ALDD accepts.
+      INTEGER IDDOSE, IDDH2O
+      PARAMETER ( IDDOSE = 228 )
+      PARAMETER ( IDDH2O = 252 )
+
+      SAVE DDWARN
+      DATA DDWARN / .TRUE. /
 
       LSCZER = .FALSE.
       COMSCW = ONEONE
       SCONAM = TRIM(ADJUSTL(TITUSB(JSCRNG)))
+
+C     ==================================================================
+C     Dirty dose.
+C
+C     Scorer key:
+C        ALDD   dose from particles whose LET exceeds DDTHRE
+C
+C     Definition:
+C        Dirty dose is the dose deposited by particles whose LET exceeds
+C        a threshold -- here DDTHRE = 30 MeV cm^2/g of unrestricted mass
+C        stopping power (== 3 keV/um in water). Dose below the threshold
+C        is rejected. Pair with an unfiltered binning of the same
+C        generalized particle over the same region:
+C
+C           dirty fraction = ALDD / (unfiltered DOSE or DOSE-H2O)
+C
+C     This is a dose-like scorer and therefore lives in COMSCW, not
+C     FLUSCW: the LET decides whether a contribution counts, but what is
+C     scored is the energy deposition itself.
+C
+C     Choice of the material the LET threshold is judged in:
+C
+C        There are two quantities in play -- the dose being scored, and
+C        the material the LET is judged in -- but only the two matching
+C        combinations are meaningful:
+C
+C           USRBIN DOSE     (228) -> judge LET in the local medium
+C           USRBIN DOSE-H2O (252) -> judge LET in water
+C
+C        So the material is not a separate scorer key: it is taken from
+C        the binning's own generalized particle, IDUSBN(JSCRNG). One key
+C        serves both, and the meaningless cross combinations (dose to
+C        water thresholded on medium LET, or vice versa) cannot be
+C        expressed. ALDD on any other binning is a user error and is
+C        rejected with a warning rather than scoring something arbitrary.
+C
+C     Units:
+C        DOSE      reconstructs LET from TRACKR as for ALL1/ALL2:
+C                     SUMD/SUMT [GeV/cm] -> * 1000 / RHO -> MeV cm^2/g.
+C        DOSE-H2O  uses GETLET, whose value satisfies
+C                     RHO * GETLET = keV/um, hence GETLET * 10 = MeV cm^2/g.
+C
+C     Particle coverage (the two differ -- see the README):
+C        DOSE      covers every charged hadron and ion FLUKA transports,
+C                  including heavy fragments, because the TRACKR route
+C                  needs no per-species stopping-power table.
+C        DOSE-H2O  covers only the light particles GETLET supports in
+C                  water (p, d, t, 3He, 4He) and therefore MISSES
+C                  heavy-fragment dirty dose. That matters more here than
+C                  for the LET moments, because fragments are exactly the
+C                  high-LET component dirty dose is meant to capture.
+C
+C     Electrons and positrons are excluded, as for ALL1/ALL2. Low-energy
+C     electrons can exceed the threshold, so this is a real choice: it
+C     keeps dirty dose a property of the hadron/ion field, consistent
+C     with the LET scorers above.
+C     ==================================================================
+
+      IF ( ISCRNG .EQ. 1 .AND. SCONAM(1:4) .EQ. 'ALDD' ) THEN
+         COMSCW = ZERZER
+
+C        COMSCW, unlike FLUSCW, is also called for point-like local energy
+C        depositions, which carry pseudo-particle ids ABOVE the normal
+C        range (208 heavy recoil, 211 e/gamma below threshold, 308 low
+C        energy neutron kerma; the originating particle is then in J0TRK).
+C        TRACKR carries no step data for these, so their LET cannot be
+C        reconstructed and they are excluded -- see the README, this is a
+C        real limitation for 208/308, which are genuinely high-LET.
+C        The test must also precede any ICHRGE(JTRACK) lookup, which is
+C        only dimensioned (-6:NALLWP).
+         IF ( JTRACK .GT. NALLWP ) RETURN
+
+C        Identify the particle by JTRACK: COMSCW's IJ argument is the
+C        deposited quantity (208 = ENERGY), not the particle type.
+C        Skip neutral particles and electrons/positrons. Ions and
+C        fragments are transported with JTRACK .LT. 0 and always charged.
+         IF ( JTRACK .GT. 0 ) THEN
+            IF ( ICHRGE(JTRACK) .EQ. 0 ) RETURN
+            IF ( JTRACK .EQ. 3 .OR. JTRACK .EQ. 4 ) RETURN
+         END IF
+
+         IDIST = IDUSBN(JSCRNG)
+
+         IF ( IDIST .EQ. IDDOSE ) THEN
+
+C           Dose in the local medium: judge LET in the local medium.
+            MATLET = MEDFLK(MREG,1)
+            IF ( MATLET .LE. 0 .OR. RHO(MATLET) .LE. ZERZER ) RETURN
+
+            SUMT = ZERZER
+            DO II = 1, NTRACK
+               SUMT = SUMT + TTRACK(II)
+            END DO
+
+            SUMD = ZERZER
+            DO II = 1, MTRACK
+               SUMD = SUMD + DTRACK(II)
+            END DO
+
+            IF ( SUMT .GT. ZERZER ) THEN
+               SMASS = 1.0D+03 * SUMD / SUMT / RHO(MATLET)
+               IF ( SMASS .GT. DDTHRE ) COMSCW = ONEONE
+            END IF
+
+         ELSE IF ( IDIST .EQ. IDDH2O ) THEN
+
+C           Dose to water: judge LET in water, at the same kinetic energy.
+            CALL LETMWA ( MWATER )
+            IF ( MWATER .LE. 0 ) RETURN
+
+            IF ( JTRACK .NE. 1  .AND. JTRACK .NE. -3 .AND.
+     &           JTRACK .NE. -4 .AND. JTRACK .NE. -5 .AND.
+     &           JTRACK .NE. -6 ) THEN
+               RETURN
+            END IF
+
+C           COMSCW is not passed the momentum, so take the kinetic energy
+C           from TRACKR. AM is indexed from -6, so AM(JTRACK) is valid for
+C           the light ions accepted above as well as for protons.
+            EKIN = ETRACK - AM(JTRACK)
+            IF ( EKIN .LE. 1.0D-09 ) RETURN
+
+            LETW = GETLET(JTRACK, EKIN, -EKIN, ZERZER, MWATER)
+            SMASS = 1.0D+01 * LETW
+            IF ( SMASS .GT. DDTHRE ) COMSCW = ONEONE
+
+         ELSE
+
+C           Neither DOSE nor DOSE-H2O: the threshold material would be
+C           undefined. Score nothing and say so, once.
+            IF ( DDWARN ) THEN
+               WRITE(LUNOUT,*) ' fluka_let_scoring: WARNING ALDD used',
+     &                         ' on a binning that is neither DOSE nor',
+     &                         ' DOSE-H2O (idusbn =', IDIST,
+     &                         '); scoring zero'
+               DDWARN = .FALSE.
+            END IF
+
+         END IF
+
+         RETURN
+      END IF
 
 C     ------------------------------------------------------------------
 C     Primary-proton DOSE filter for COMSCW.
@@ -1022,8 +1149,13 @@ C        For primary-proton dose-like USRBIN scorers, reject every
 C        energy-deposition contribution except contributions from
 C        source-generation protons.
 C
-C        IJ .EQ. 1      selects protons.
+C        JTRACK .EQ. 1  selects protons.
 C        LTRACK .EQ. 1  selects source-generation / primary protons.
+C
+C     NOTE: identify the particle by JTRACK, NOT by the IJ argument.
+C     Unlike in FLUSCW, COMSCW's IJ is the generalized quantity being
+C     deposited (208 = ENERGY for dose scoring), not the particle type.
+C     Testing IJ .EQ. 1 here silently scores zero everywhere.
 C
 C     COMSCW return value:
 C        COMSCW = ONEONE   keep this dose contribution.
@@ -1034,7 +1166,7 @@ C     therefore includes both primary and secondary protons.
 C     ------------------------------------------------------------------
 
       IF ( ISCRNG .EQ. 1 .AND. SCONAM(1:4) .EQ. 'P1DO' ) THEN
-         IF ( IJ .EQ. 1 .AND. LTRACK .EQ. 1 ) THEN
+         IF ( JTRACK .EQ. 1 .AND. LTRACK .EQ. 1 ) THEN
             COMSCW = ONEONE
          ELSE
             COMSCW = ZERZER
@@ -1120,4 +1252,59 @@ C     ------------------------------------------------------------------
 
       RETURN
 *=== End of function Comscw ===========================================*
+      END
+C=======================================================================
+C Water material lookup, shared by FLUSCW and COMSCW.
+C=======================================================================
+C
+C     Returns in MWATER the material index to use for the water-reference
+C     scorers. Resolved once, on the first call, and cached; the result is
+C     written to the FLUKA output (LUNOUT) so it can be verified.
+C
+C     MWATER is resolved as:
+C        1. MATQLT -- FLUKA's built-in "extra water material for Q(L)
+C           calculations" (flkmat.inc). This exists for dose-equivalent /
+C           quality-factor scoring and is available even when the input
+C           deck defines no explicit WATER material.
+C        2. otherwise, the first material named 'WATER' in MATNAM.
+C        3. otherwise MWATER stays .LE. 0 and the water-reference scorers
+C           return zero (a warning is written to LUNOUT).
+C
+C     Both FLUSCW and COMSCW need this, so it lives in one place: the
+C     lookup cannot drift between them, and the log line is printed once.
+C=======================================================================
+      SUBROUTINE LETMWA ( MWATER )
+
+      INCLUDE 'dblprc.inc'
+      INCLUDE 'dimpar.inc'
+      INCLUDE 'iounit.inc'
+      INCLUDE 'flkmat.inc'
+
+      INTEGER MWATER, MWSAVE, II
+      LOGICAL LETFRS
+      SAVE MWSAVE, LETFRS
+      DATA MWSAVE / -1 /
+      DATA LETFRS / .TRUE. /
+
+      IF ( LETFRS ) THEN
+         MWSAVE = MATQLT
+         IF ( MWSAVE .LE. 0 ) THEN
+            DO II = 1, NMAT
+               IF ( MWSAVE .LE. 0 .AND.
+     &              MATNAM(II)(1:5) .EQ. 'WATER' ) MWSAVE = II
+            END DO
+         END IF
+         IF ( MWSAVE .LE. 0 ) THEN
+            WRITE(LUNOUT,*) ' fluka_let_scoring: WARNING no WATER',
+     &                      ' material found; water scorers return 0'
+         ELSE
+            WRITE(LUNOUT,*) ' fluka_let_scoring: water MWATER =', MWSAVE
+         END IF
+         LETFRS = .FALSE.
+      END IF
+
+      MWATER = MWSAVE
+
+      RETURN
+*=== End of subroutine Letmwa =========================================*
       END

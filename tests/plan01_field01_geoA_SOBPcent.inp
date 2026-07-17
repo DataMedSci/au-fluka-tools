@@ -161,7 +161,26 @@ USRBIN          10.0     201.0     -71.0      1.00      1.00     10.25      ALW2
 USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
 USRBIN          10.0     201.0     -73.0      1.00      1.00     10.25      ALWF_ZN
 USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+* Dirty dose: dose from particles with LET > 30 MeV cm2/g. The same ALDD
+* key serves both variants; the material the LET threshold is judged in
+* follows the binning's generalized particle:
+*   DOSE     (228) -> LET in the local medium, divide by DOSE_ZN  (u21)
+*   DOSE-H2O (252) -> LET in water,            divide by DSW_ZN   (u76)
+USRBIN          10.0     228.0     -74.0      1.00      1.00     10.25      ALDD_DZ
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+* The DOSE-H2O (252) counterpart. NOTE the RAD-BIOL card further down:
+* DOSE-H2O requires it, and without it FLUKA aborts with an unrelated-
+* looking SIGFPE in dedx/alphbt.f rather than a message. See the README.
+USRBIN          10.0     252.0     -75.0      1.00      1.00     10.25      ALDD_WZ
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+* unfiltered dose-to-water, the denominator for ALDD_WZ
+USRBIN          10.0     252.0     -76.0      1.00      1.00     10.25      DSW_ZN
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
 USERWEIG         0.0       0.0       1.0       0.0       0.0       1.0
+* DOSE-H2O needs a RAD-BIOL card present; its alpha/beta content is not
+* used for dose-to-water (FLUKA developers confirm), but omitting the
+* card makes any DOSE-H2O bin in non-water material abort.
+RAD-BIOL                                                              letbio
 RANDOMIZ         1.0       0.0
 START       100000.0
 STOP

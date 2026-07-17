@@ -156,12 +156,78 @@ Lithium (via `TRACKR`, because `GETLET` returns zero for transported Li):
 
 | Key | Meaning | Selection | Weight |
 |---|---|---|---|
-| `P1DO` | primary-proton dose filter | `IJ=1`, `LTRACK=1` | 1 or 0 |
+| `ALDD` | dirty dose (LET > 30 MeV cm²/g) | charged hadrons + ions (no e±) | 1 or 0 |
+| `P1DO` | primary-proton dose filter | `JTRACK=1`, `LTRACK=1` | 1 or 0 |
 | `L6DO` | Li-6 dose filter | Z=3, A=6 | 1 or 0 |
 | `L7DO` | Li-7 dose filter | Z=3, A=7 | 1 or 0 |
 
 `P1DO` keeps only source-generation protons — unlike a standard `AUXSCORE PROTON` dose
 scorer, which includes secondary protons too.
+
+> Identify the particle in `COMSCW` by `JTRACK`, **not** by the `IJ` argument. Unlike in
+> `FLUSCW`, `COMSCW`'s `IJ` is the *generalized quantity being deposited* (208 = `ENERGY`
+> for dose scoring), not the particle type — so `IJ .EQ. 1` is never true and silently
+> scores zero everywhere. `COMSCW` is also called for point-like depositions whose
+> `JTRACK` is a pseudo-particle id above the normal range (208 heavy recoil, 211 e/γ below
+> threshold, 308 low-energy neutron kerma), which will run off the end of `ICHRGE(-6:64)`
+> if not screened first.
+
+## Dirty dose
+
+Dirty dose is the dose deposited by particles whose LET exceeds a threshold — here
+**30 MeV cm²/g** of unrestricted mass stopping power, equivalently **3 keV/µm in water**.
+It answers "how much of this dose was delivered by high-LET particles?", and pairs
+naturally with the LET scorers above.
+
+Score it with `ALDD` plus an unfiltered bin of the same generalized particle:
+
+```text
+* dirty dose, LET judged in the local medium        (unit 24)
+USRBIN           10.0      DOSE      -24.  <xmax ymax zmax bins...>    ALDD
+USRBIN         <xmin ymin zmin> ...                                   &
+* unfiltered dose over the same region              (unit 25)
+USRBIN           10.0      DOSE      -25.  <xmax ymax zmax bins...>    DOSE
+USRBIN         <xmin ymin zmin> ...                                   &
+```
+
+then `dirty fraction = ALDD / DOSE`, bin by bin.
+
+**The material the LET threshold is judged in is not a separate key.** There are two axes
+— the dose being scored, and the material the LET is judged in — but only the two matching
+combinations mean anything, so `ALDD` reads the binning's own generalized particle
+(`IDUSBN`) and follows it:
+
+| `USRBIN` WHAT(2) | LET judged in | Route | Covers |
+|---|---|---|---|
+| `DOSE` (228) | local medium | `TRACKR` | all charged hadrons + ions, incl. heavy fragments |
+| `DOSE-H2O` (252) | water | `GETLET` | p, d, t, ³He, ⁴He only |
+
+One key serves both, and the meaningless cross combinations (dose-to-water thresholded on
+medium LET, or vice versa) cannot be expressed. `ALDD` on any other binning is rejected
+with a warning rather than scoring something arbitrary.
+
+Caveats worth knowing before quoting a number:
+
+- **`DOSE-H2O` misses heavy fragments.** `GETLET` has no water stopping power for Li and
+  above, so they drop out. That bites harder here than for the LET moments, because
+  fragments are exactly the high-LET component dirty dose is meant to capture. The `DOSE`
+  variant has no such gap.
+- **Point-like depositions are excluded**, because `TRACKR` carries no step data for them
+  and their LET cannot be reconstructed. Two of these are genuinely high-LET and so are
+  under-counted: heavy recoils (`JTRACK` 208) and low-energy neutron kerma (308).
+- **Electrons and positrons are excluded**, as for `ALL1`/`ALL2`. Low-energy electrons can
+  exceed the threshold, so this is a real choice: it keeps dirty dose a property of the
+  hadron/ion field.
+
+> **`DOSE-H2O` requires a `RAD-BIOL` card**, or FLUKA dies with a SIGFPE in
+> `dedx/alphbt.f:382` (`alphbt` called with `rbealp=-1`, `rbebet=0`) via `score/usrsco.f`
+> — no message about the real cause, and only in materials other than water, so a water
+> phantom runs and a carbon one aborts. This is FLUKA's own behaviour: it reproduces with
+> the stock `fluka` executable and no user routines at all. The α/β file content is *not*
+> used by `DOSE-H2O` — a FLUKA developer
+> [confirmed on the forum](https://fluka-forum.web.cern.ch/t/dose-to-water-issue/6128) that
+> it is required only "for technical reasons — to be overcome at a later stage". Any valid
+> file will do; `tests/letbio.dat` is a minimal one.
 
 ## A note on ancestry
 
