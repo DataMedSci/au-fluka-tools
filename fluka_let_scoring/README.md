@@ -1,338 +1,352 @@
 # FLUKA LET scoring routines
 
-## Required companion source routine
+FLUKA `FLUSCW` and `COMSCW` user-weighting routines for scoring LET moments, from
+which averaged LET quantities (track-averaged and dose-averaged LET) are reconstructed
+in post-processing.
 
-`fluka_let_scoring.f` is not a complete FLUKA executable by itself. It provides the `FLUSCW` and `COMSCW` scoring routines only.
+These are **user routines**, not a standalone program. You link them into a custom FLUKA
+executable, then activate them from your input file with a `USERWEIG` card.
 
-To run the SOBP/LET benchmark input files in this repository, it must be compiled and linked together with the SOBP source routine:
+References:
 
-`../fluka_sobp_source/source_sampler.f`
+- Averaged LET (the LET-moment scorers): Kalholm F, Grzanka L, Traneus E, Bassler N.
+  *A systematic review on the usage of averaged LET in radiation biology for particle
+  therapy.* Radiotherapy and Oncology. 2021;161:211-21.
+- Dirty dose (the `ALDD` scorer): Heuchel L, Hahn C, Ödén J, Traneus E, Wulff J,
+  Timmermann B, Bäumer C, Lühr A. *The dirty and clean dose concept: towards creating
+  proton therapy treatment plans with a photon-like dose response.* Medical Physics.
+  2024;51(1):622-36. Introduces the concept, and discusses the choice of threshold.
+- Dirty dose applied to RBE: Kalholm F, Toma-Dasu I, Traneus E. *'Dirty dose'-based proton
+  variable RBE models — performance assessment on in vitro data.* Medical Physics.
+  2025;52(2):1311-22.
 
-That source routine implements the FLUKA `SOURCE` entry point and reads the beam/source table referenced by the input cards, for example `sobp.dat`. Without a matching `SOURCE` routine, the benchmark input files cannot sample the intended proton field.
+## Quick start
 
+1. In your FLUKA input, give a `USRBIN` scorer a name whose **first four characters** are
+   a key this routine recognises (e.g. `ALL1`). The name is read from `TITUSB(JSCRNG)`;
+   only the first four characters select the branch, so you may append a suffix for your
+   own bookkeeping (e.g. `ALL1_ZN`).
+2. Activate user weighting with a `USERWEIG` card (`WHAT(3)=1` to call `FLUSCW`,
+   `WHAT(6)=1` to call `COMSCW`).
+3. Compile and link the routine into a custom FLUKA executable (see *Compilation*).
+4. Run FLUKA with that executable.
+5. Post-process the scored moments into averaged LET (see the example below).
 
-This folder contains FLUKA user-routine code for LET-moment, fluence-filter, and dose-filter scoring.
+## The main quantity: all-particle dose-averaged LET
 
-The main file is:
+The headline scorers are `ALL1` and `ALL2`: the first and second **unrestricted** LET
+moments over **all charged hadrons and ions**, evaluated in the *local* material. They
+cover every charged hadron and ion FLUKA transports — protons, light ions, and heavy
+fragments alike — by dispatching internally over two routes (`GETLET` for p/d/t/³He/⁴He,
+`TRACKR` for heavier fragments; see *The LET reported* below for why, and why both yield
+the same unrestricted quantity).
 
-- `fluka_let_scoring.f`
+Neutral particles are skipped, and **electrons and positrons are excluded** even when EMF
+transport is active. This is not a matter of taste: LET here is *unrestricted* stopping
+power, which already includes the energy handed to δ-rays. FLUKA transporting those δ-rays
+is fine and desirable — it is how the dose ends up in the right place — but scoring them
+*again* as LET carriers in their own right would count that same energy twice. Excluding
+e± is what keeps the accounting closed. See Kalholm et al. on why the restricted /
+unrestricted distinction has to be stated explicitly.
 
-It implements two FLUKA user routines:
+Score three co-located `USRBIN` bins over the same region: `ALL1`, `ALL2`, and `ALFL`.
+Schematic input:
 
-- `FLUSCW`: user weighting for fluence-like and track-length-like estimators.
-- `COMSCW`: user weighting for dose-like energy-deposition estimators.
+```text
+* userweig: call FLUSCW (WHAT(3)=1)
+USERWEIG          0.0       0.0       1.0                              &
+*
+* first LET moment   (weight = LET)             -> ALL1  (unit 22)
+USRBIN           11.0  ALL-PART      -22.  <xmax ymax zmax bins...>    ALL1
+USRBIN         <xmin ymin zmin> ...                                   &
+* second LET moment  (weight = LET^2)           -> ALL2  (unit 23)
+USRBIN           11.0  ALL-PART      -23.  <xmax ymax zmax bins...>    ALL2
+USRBIN         <xmin ymin zmin> ...                                   &
+* unweighted fluence, same particle set         -> ALFL  (unit 21)
+USRBIN           11.0  ALL-PART      -21.  <xmax ymax zmax bins...>    ALFL
+USRBIN         <xmin ymin zmin> ...                                   &
+```
 
-These routines are intended for FLUKA simulations where LET-related quantities are reconstructed from scorer moments.
+All three bins use the `ALL-PART` generalized particle; `FLUSCW` does the actual particle
+selection, and multiplies each track segment by the returned weight (LET for `ALL1`, LET²
+for `ALL2`, 1 for `ALFL`). Then, bin by bin:
 
-## Reference
+- **dose-averaged LET**  `LETd = ALL2 / ALL1`
+- **track-averaged LET** `LETt = ALL1 / ALFL`
 
-This implementation follows the need for explicit LET definitions emphasized in:
+(`ALL2/ALL1` needs no separate fluence bin, because a segment's dose contribution is
+∝ length·LET, so the dose-weighted mean of LET is `Σ(ℓ·LET·LET)/Σ(ℓ·LET)`.)
 
-Kalholm F, Grzanka L, Traneus E, Bassler N. A systematic review on the usage of averaged LET in radiation biology for particle therapy. Radiotherapy and Oncology. 2021 Aug 1;161:211-21.
+> **Use `ALFL`, not a plain unweighted `ALL-PART` bin, as the track-average denominator.**
+> A plain `ALL-PART` bin gets no `FLUSCW` filtering and so counts neutrons, photons and
+> electrons — none of which contribute to the `ALL1` numerator. Dividing by it
+> underestimates `LETt` (~3% at entrance in `tests/`, and unboundedly past the distal
+> edge, where the neutral fluence is non-zero while `ALL1` is exactly zero). `ALFL`
+> applies the same particle selection as `ALL1`/`ALL2`, so the ratio is consistent by
+> construction. `LETd = ALL2/ALL1` is unaffected either way.
 
-When using or modifying these routines, always document:
+## The LET reported: unrestricted, in one of two materials
 
-- which particles are included,
-- whether primary-only or all transported particles are scored,
-- whether LET is evaluated in the local material or in water,
-- whether the score is a first LET moment or a second LET-squared moment,
-- how the final averaged LET quantity is reconstructed in post-processing.
+**Every scorer here reports unrestricted LET (LET_∞)** — the full electronic stopping
+power, including the energy handed to δ-rays. The only axis that varies between keys is
+the *material* the LET is evaluated in: the **local** medium, or **water**.
 
-## What this file is and is not
+That matters because the restricted/unrestricted choice is exactly what the Kalholm review
+warns goes unstated. State it when you report: these are unrestricted.
 
-`fluka_let_scoring.f` is not a complete FLUKA input and not a complete executable by itself.
+Getting there needs two implementation routes, because neither covers the whole field:
 
-It provides scoring user routines that must be linked into a custom FLUKA executable together with the source routine used by the simulation.
+| Route | Used for | Why |
+|---|---|---|
+| `GETLET` | p, d, t, ³He, ⁴He | Unrestricted by construction (the restriction-energy argument is passed as zero). Verified: 5.2 MeV cm²/g for a 160 MeV proton in water, matching NIST PSTAR's unrestricted value. |
+| `TRACKR` (`ΣDTRACK/ΣTTRACK`) | Li and heavier fragments | `GETLET` **cannot** serve these: FLUKA transports every heavy ion under one generic code (`JTRACK = -39`) with the real Z/A off in `FHEAVY`, and `GETLET`'s argument list has nowhere to accept them — it returns exactly zero for all of them. |
 
-A typical workflow is:
+The `TRACKR` route measures energy *deposited*, which in general is *restricted* at the
+δ-ray production threshold (100 keV under `PRECISION`). **For heavy fragments that
+distinction is void**: a δ can only exceed 100 keV when β²γ² > 0.098, i.e. above roughly
+45 MeV/u, and fragments in a proton field are far slower (typically < 1 MeV/u). No δ is
+ever split off, so the deposited LET *is* the unrestricted LET. Both routes return the
+same quantity, and the seam between them is invisible in the output.
 
-1. Write or prepare a normal FLUKA input file with `USRBIN` scorers.
-2. Give selected `USRBIN` scorers one of the four-character names listed below.
-3. Attach `FLUSCW` or `COMSCW` through `USERWEIG` and, where relevant, `AUXSCORE`.
-4. Compile and link `fluka_let_scoring.f` with FLUKA.
-5. Run FLUKA with the custom executable.
-6. Post-process the scored moments into averaged LET quantities.
+> **Limit of that argument.** It rests on *speed*, and the `TRACKR` branch takes everything
+> that is not p/d/t/³He/⁴He — heavy fragments, and also π±/K±/µ± where a field is energetic
+> enough to make them. Anything routed there that is fast enough to produce a δ above the
+> threshold (β²γ² > 0.098) is scored as restricted LET, not unrestricted. Sound for proton
+> therapy, where fragments are < 1 MeV/u and no pions are produced below ~290 MeV; re-derive
+> before trusting it for a 400 MeV/u carbon beam (T_max ≈ 800 keV) or any high-energy field.
 
-## Four-character scorer-key convention
-
-The scorer identifiers are kept to four characters because the USRBIN/AUXSCORE workflow used here relies on four-character scorer keys.
-
-The routine reads the active scorer name through `TITUSB(JSCRNG)` and stores it as `SCONAM`.
-
-The first four characters of `SCONAM` decide which branch of `FLUSCW` or `COMSCW` is applied.
-
-## Moment convention
-
-The `L1` and `L2` suffixes mean:
-
-- `L1`: first raw LET moment, meaning the contribution is weighted by LET.
-- `L2`: second raw LET moment, meaning the contribution is weighted by LET².
-
-Here, LET means linear energy transfer based on the electronic stopping power of the selected material. For local-material scorers, the selected material is the current FLUKA transport material. For water-reference scorers, the selected material is the configured water-equivalent material.
-
-The returned units are:
-
-- `L1`: keV/µm
-- `L2`: (keV/µm)²
-
-In post-processing, these moments can be combined with the corresponding unweighted estimator to reconstruct averaged LET quantities.
-
-For example, in a track-length-like LET reconstruction:
-
-- track-averaged LET is reconstructed from a first LET moment divided by the matching unweighted fluence or track-length estimator.
-
-For a dose-like LET reconstruction using first and second LET moments:
-
-- dose-averaged LET is reconstructed from the second LET moment divided by the first LET moment.
-
-The exact normalization depends on the estimator and post-processing script, so the scorer pairings must be kept consistent.
-
-## `GETLET` and electronic stopping power
-
-`GETLET` is the central FLUKA helper used by this routine for protons, deuterons, tritons, helium-3, and helium-4.
-
-In this implementation, `GETLET` is called as:
-
-    LETW = GETLET(IJ, EKIN, PLA, ZERZER, MATLET)
-
-where:
-
-- `IJ` is the FLUKA particle identifier.
-- `EKIN = -PLA` is the kinetic energy used for the stopping-power lookup.
-- `MATLET` is the material in which the LET/stopping power is evaluated.
-
-The routine treats the value returned by `GETLET` as a mass electronic stopping power. It is converted to linear LET with:
-
-    LETLIN = RHO(MATLET) * LETW
-
-This gives LET in keV/µm for the selected material.
-
-This material choice is important:
-
-- local-material scorer keys use `MATLET = MEDFLK(NREG,1)`;
-- water-reference scorer keys use `MATLET = 30`.
-
-Thus, the same transported particle can be scored with LET evaluated either in the local transport material or in the selected water-equivalent material.
-
-Li-6 and Li-7 are exceptions in this implementation. The tested `GETLET` calls returned zero for transported lithium ions, so lithium LET is reconstructed from `TRACKR` energy-deposition and track-length quantities instead.
-
-## Important FLUKA variables used
-
-The routine uses FLUKA common-block variables provided by the included FLUKA header files.
-
-Important variables include:
-
-- `IJ`: FLUKA particle identifier passed to `FLUSCW` and `COMSCW`.
-  - `IJ = 1`: proton
-  - `IJ = -3`: deuteron
-  - `IJ = -4`: triton
-  - `IJ = -5`: helium-3
-  - `IJ = -6`: helium-4 / alpha
-- `LTRACK`: generation index for the currently transported particle.
-  - `LTRACK = 1`: source-generation particle.
-  - `LTRACK > 1`: secondary or later-generation particle.
-- `MEDFLK(NREG,1)`: material index of the current FLUKA region.
-- `RHO(MATLET)`: density of the material used for converting mass stopping power to linear LET.
-- `TITUSB(JSCRNG)`: scorer name for the active scoring call.
-- `TRACKR` / `FHEAVY`: heavy-fragment transport bookkeeping used here for Li-6 and Li-7.
+The gap is not academic. Before the split, when `ALL1`/`ALL2` used `TRACKR` for
+everything, entrance track-averaged LET came out **7% low** — measured 0.932 of the
+unrestricted water reference, against 0.931 predicted by Bethe for Δ=100 keV vs
+T_max=378 keV at 160 MeV. With the two routes it is 0.985, the remainder being the genuine
+solid-water-vs-water material difference.
 
 ## Material convention
 
-For local-material LET scoring, the routine uses:
+- **Local scorers** use `MATLET = MEDFLK(NREG,1)` — LET in whatever material the particle
+  is currently in. The only guard is skipping vacuum / non-material regions
+  (`MATLET ≤ 0` or `RHO ≤ 0`). Restricting *where* you score is the job of the `USRBIN`
+  geometry, not of a material list. (The old hardcoded `27/28/29/30` filter has been
+  removed.)
+- **Water-reference scorers** use `MATLET = MWATER`, resolved **automatically** on the
+  first scoring call — there are no hardcoded material numbers. `MWATER` is taken from
+  FLUKA's built-in `MATQLT` (the "extra water material for Q(L) calculations" in
+  `flkmat.inc`, present even when the input defines no explicit `WATER`); failing that,
+  from the first material named `WATER` in `MATNAM`. The chosen index is written to the
+  FLUKA output as `fluka_let_scoring: water MWATER = <n>` so you can verify it. If no
+  water material can be found, the water-reference scorers return zero and a warning is
+  printed.
 
-`MATLET = MEDFLK(NREG,1)`
+## Moment convention
 
-This means LET is evaluated in the material of the current FLUKA region.
+`L1`/`L2` (and `W1`/`W2` for water) suffixes mean:
 
-The current implementation restricts local-material LET scoring to material indices:
+- `1`: first raw LET moment — weighted by LET. Units keV/µm.
+- `2`: second raw LET moment — weighted by LET². Units (keV/µm)².
 
-- `27`
-- `28`
-- `29`
-- `30`
+## Particle coverage at a glance
 
-These numbers are geometry-specific material indices for the benchmark phantom/slab scoring media. If the material card order or geometry changes, these numbers must be checked and updated.
+Which particles a key actually scores follows from its LET route, not from its name. The
+`TRACKR` route reconstructs LET from the energy deposited per unit step, so it works for
+anything charged; the `GETLET` route needs a tabulated stopping power and so is limited to
+the five light species FLUKA supplies.
 
-For water-reference LET scoring, the routine uses:
+| Keys | Scores | Does **not** score | Route |
+|---|---|---|---|
+| `ALL1`, `ALL2`, `ALFL`, `ALDD` on `DOSE` | every charged particle FLUKA transports except e±: p, d, t, ³He, ⁴He, Li **and all heavier fragments**, plus π±/K±/µ± if present | e±, neutrals, point-like depositions (208, 211, 308) | `GETLET` local for p/d/t/³He/⁴He, `TRACKR` for the rest |
+| `ALW1`, `ALW2`, `ALWF`, `ALDD` on `DOSE-H2O` | p, d, t, ³He, ⁴He | **Li and heavier fragments**, π±/K±/µ±, e±, neutrals | `GETLET`, water |
+| `PAL1`, `PAL2` | protons, all generations | everything else | `GETLET`, local |
+| `PAW1`, `PAW2` | protons, all generations | everything else | `GETLET`, water |
+| `P1FL`, `P1L1`, `P1L2`, `P1W1`, `P1W2`, `P1DO` | protons with `LTRACK=1` (source generation) | secondary protons, everything else | `GETLET` |
+| `D2L1`/`D2L2` | deuterons | everything else | `GETLET`, local |
+| `T3L1`/`T3L2` | tritons | everything else | `GETLET`, local |
+| `H3L1`/`H3L2` | ³He | everything else | `GETLET`, local |
+| `H4L1`/`H4L2` | ⁴He / α | everything else | `GETLET`, local |
+| `L6L1`, `L6L2`, `L6FL`, `L6DO` | Li-6 (Z=3, A=6) | everything else | `TRACKR` |
+| `L7L1`, `L7L2`, `L7FL`, `L7DO` | Li-7 (Z=3, A=7) | everything else | `TRACKR` |
 
-`MATLET = 30`
+Three consequences worth internalising:
 
-This assumes that material index `30` is the intended water-equivalent material in the benchmark geometry. This must also be checked if the material definitions are changed.
+- **The water-reference keys cannot see Li or heavier.** `GETLET` has no water stopping
+  power for them, so every fragment above ⁴He silently drops out of `ALW1`/`ALW2`/`ALWF`
+  and of `ALDD` on a `DOSE-H2O` binning. Only the `TRACKR` keys cover the full field. This
+  matters most for dirty dose, where fragments are the high-LET component of interest.
+- **e± are excluded everywhere by design**, even with EMF transport active. The LET is
+  unrestricted, so the δ-ray energy is already inside the primary's LET; scoring the
+  transported δ-rays again would double-count it. Transporting them is still correct and
+  wanted — it is what puts the dose in the right place.
+- **Never mix routes across a ratio.** Numerator and denominator must share a particle
+  set: `ALL1/ALFL`, not `ALL1/ALWF` or `ALL1` over a plain `ALL-PART` bin.
 
-## Proton scorer keys handled by FLUSCW
+## Scorer keys handled by `FLUSCW`
 
-These scorers are handled in `FLUSCW`.
+All-particle (recommended starting point):
 
-| Key | Meaning | Particle selection | Material convention | Returned weight |
+| Key | Meaning | Selection | Material | Weight |
 |---|---|---|---|---|
-| `PAL1` | all-proton local-material LET moment | all transported protons | local material | LET |
-| `PAL2` | all-proton local-material LET² moment | all transported protons | local material | LET² |
-| `PAW1` | all-proton water-reference LET moment | all transported protons | water-reference material | LET |
-| `PAW2` | all-proton water-reference LET² moment | all transported protons | water-reference material | LET² |
-| `P1FL` | primary-proton fluence filter | protons with `LTRACK = 1` | not applicable | 1 or 0 |
-| `P1L1` | primary-proton local-material LET moment | protons with `LTRACK = 1` | local material | LET |
-| `P1L2` | primary-proton local-material LET² moment | protons with `LTRACK = 1` | local material | LET² |
-| `P1W1` | primary-proton water-reference LET moment | protons with `LTRACK = 1` | water-reference material | LET |
-| `P1W2` | primary-proton water-reference LET² moment | protons with `LTRACK = 1` | water-reference material | LET² |
+| `ALL1` | all-particle LET moment | charged hadrons + ions (no e±) | local | LET |
+| `ALL2` | all-particle LET² moment | charged hadrons + ions (no e±) | local | LET² |
+| `ALFL` | all-particle fluence (`ALL1`/`ALL2` denominator) | charged hadrons + ions (no e±) | — | 1 |
+| `ALW1` | all-particle water LET moment | p, d, t, ³He, ⁴He | water | LET |
+| `ALW2` | all-particle water LET² moment | p, d, t, ³He, ⁴He | water | LET² |
+| `ALWF` | water fluence (`ALW1`/`ALW2` denominator) | p, d, t, ³He, ⁴He | — | 1 |
 
-“Primary proton” here means source-generation proton, implemented with `LTRACK .EQ. 1`.
+Protons:
 
-“All protons” includes both source-generation protons and secondary or later-generation protons.
+| Key | Meaning | Selection | Material | Weight |
+|---|---|---|---|---|
+| `PAL1`/`PAL2` | all-proton LET / LET² | all protons | local | LET / LET² |
+| `PAW1`/`PAW2` | all-proton LET / LET² | all protons | water | LET / LET² |
+| `P1FL` | primary-proton fluence filter | protons, `LTRACK=1` | — | 1 or 0 |
+| `P1L1`/`P1L2` | primary-proton LET / LET² | protons, `LTRACK=1` | local | LET / LET² |
+| `P1W1`/`P1W2` | primary-proton LET / LET² | protons, `LTRACK=1` | water | LET / LET² |
 
-## Light-fragment scorer keys handled by FLUSCW
+Light fragments (via `GETLET`, `IJ` = FLUKA particle id):
 
-These scorers are handled in `FLUSCW`.
-
-| Key | Meaning | FLUKA particle identifier | Returned weight |
+| Key | Particle | `IJ` | Weight |
 |---|---|---:|---|
-| `D2L1` | deuteron LET moment | `IJ = -3` | LET |
-| `D2L2` | deuteron LET² moment | `IJ = -3` | LET² |
-| `T3L1` | triton LET moment | `IJ = -4` | LET |
-| `T3L2` | triton LET² moment | `IJ = -4` | LET² |
-| `H3L1` | helium-3 LET moment | `IJ = -5` | LET |
-| `H3L2` | helium-3 LET² moment | `IJ = -5` | LET² |
-| `H4L1` | helium-4 / alpha LET moment | `IJ = -6` | LET |
-| `H4L2` | helium-4 / alpha LET² moment | `IJ = -6` | LET² |
+| `D2L1`/`D2L2` | deuteron | -3 | LET / LET² |
+| `T3L1`/`T3L2` | triton | -4 | LET / LET² |
+| `H3L1`/`H3L2` | helium-3 | -5 | LET / LET² |
+| `H4L1`/`H4L2` | helium-4 / α | -6 | LET / LET² |
 
-These light-fragment scorers use `GETLET`.
+Lithium (via `TRACKR`, because `GETLET` returns zero for transported Li):
 
-The routine obtains a mass stopping power from `GETLET`, then converts it to linear LET using:
+| Key | Isotope | Weight |
+|---|---|---|
+| `L6L1`/`L6L2` | Li-6 (Z=3, A=6) | LET / LET² |
+| `L7L1`/`L7L2` | Li-7 (Z=3, A=7) | LET / LET² |
+| `L6FL`/`L7FL` | Li-6 / Li-7 fluence filter | 1 or 0 |
 
-`LETLIN = RHO(MATLET) * LETW`
+## Scorer keys handled by `COMSCW`
 
-## Lithium scorer keys handled by FLUSCW
+`COMSCW` weights dose-like (energy-deposition) estimators, where `FLUSCW` does not apply.
 
-Lithium isotope LET is not obtained through `GETLET` in this implementation. The tested `GETLET` calls returned zero for transported lithium ions, so Li-6 and Li-7 are handled through FLUKA heavy-fragment bookkeeping.
-
-For lithium LET moments, the routine reconstructs LET from `TRACKR` quantities:
-
-`LET = 100 * SUMD / SUMT`
-
-where:
-
-- `SUMD` is the summed energy deposition along the transported fragment step in GeV,
-- `SUMT` is the summed track length in cm,
-- the factor `100` converts GeV/cm to keV/µm.
-
-| Key | Meaning | Isotope selection | Returned weight |
+| Key | Meaning | Selection | Weight |
 |---|---|---|---|
-| `L6L1` | lithium-6 LET moment | Z = 3, A = 6 | LET |
-| `L6L2` | lithium-6 LET² moment | Z = 3, A = 6 | LET² |
-| `L7L1` | lithium-7 LET moment | Z = 3, A = 7 | LET |
-| `L7L2` | lithium-7 LET² moment | Z = 3, A = 7 | LET² |
-| `L6FL` | lithium-6 fluence filter | Z = 3, A = 6 | 1 or 0 |
-| `L7FL` | lithium-7 fluence filter | Z = 3, A = 7 | 1 or 0 |
+| `ALDD` | dirty dose (LET > 30 MeV cm²/g) | charged hadrons + ions (no e±) | 1 or 0 |
+| `P1DO` | primary-proton dose filter | `JTRACK=1`, `LTRACK=1` | 1 or 0 |
+| `L6DO` | Li-6 dose filter | Z=3, A=6 | 1 or 0 |
+| `L7DO` | Li-7 dose filter | Z=3, A=7 | 1 or 0 |
 
-## Dose-filter scorer keys handled by COMSCW
+`P1DO` keeps only source-generation protons — unlike a standard `AUXSCORE PROTON` dose
+scorer, which includes secondary protons too.
 
-These scorers are handled in `COMSCW`.
+> Identify the particle in `COMSCW` by `JTRACK`, **not** by the `IJ` argument. Unlike in
+> `FLUSCW`, `COMSCW`'s `IJ` is the *generalized quantity being deposited* (208 = `ENERGY`
+> for dose scoring), not the particle type — so `IJ .EQ. 1` is never true and silently
+> scores zero everywhere. `COMSCW` is also called for point-like depositions whose
+> `JTRACK` is a pseudo-particle id above the normal range (208 heavy recoil, 211 e/γ below
+> threshold, 308 low-energy neutron kerma), which will run off the end of `ICHRGE(-6:64)`
+> if not screened first.
 
-`COMSCW` is needed for dose-like energy-deposition estimators, because `FLUSCW` is not applied to dose scoring in the same way.
+## Dirty dose
 
-| Key | Meaning | Selection | Returned weight |
+Dirty dose is the dose deposited by particles whose LET exceeds a threshold — here
+**30 MeV cm²/g** of unrestricted mass stopping power, equivalently **3 keV/µm in water**.
+It answers "how much of this dose was delivered by high-LET particles?", and pairs
+naturally with the LET scorers above. Heuchel et al. (2024) introduce the dirty/clean dose
+concept and its use in planning for a photon-like dose response, **and discuss the choice
+of threshold** — read it before changing the value. Kalholm et al. (2025) assess
+dirty-dose-based variable-RBE models against in vitro data.
+
+The threshold is the `DDTHRE` parameter in `COMSCW`, in MeV cm²/g; it is a single named
+constant, so changing it means editing one line and recompiling.
+
+Score it with `ALDD` plus an unfiltered bin of the same generalized particle:
+
+```text
+* dirty dose, LET judged in the local medium        (unit 24)
+USRBIN           10.0      DOSE      -24.  <xmax ymax zmax bins...>    ALDD
+USRBIN         <xmin ymin zmin> ...                                   &
+* unfiltered dose over the same region              (unit 25)
+USRBIN           10.0      DOSE      -25.  <xmax ymax zmax bins...>    DOSE
+USRBIN         <xmin ymin zmin> ...                                   &
+```
+
+then `dirty fraction = ALDD / DOSE`, bin by bin.
+
+**The material the LET threshold is judged in is not a separate key.** There are two axes
+— the dose being scored, and the material the LET is judged in — but only the two matching
+combinations mean anything, so `ALDD` reads the binning's own generalized particle
+(`IDUSBN`) and follows it:
+
+| `USRBIN` WHAT(2) | LET judged in | Route | Covers |
 |---|---|---|---|
-| `P1DO` | primary-proton dose filter | `IJ = 1` and `LTRACK = 1` | 1 or 0 |
-| `L6DO` | lithium-6 dose filter | Z = 3, A = 6 | 1 or 0 |
-| `L7DO` | lithium-7 dose filter | Z = 3, A = 7 | 1 or 0 |
+| `DOSE` (228) | local medium | `GETLET` + `TRACKR` | all charged hadrons + ions, incl. heavy fragments |
+| `DOSE-H2O` (252) | water | `GETLET` | p, d, t, ³He, ⁴He only |
 
-`P1DO` is different from a standard `AUXSCORE PROTON` dose scorer.
+One key serves both, and the meaningless cross combinations (dose-to-water thresholded on
+medium LET, or vice versa) cannot be expressed. `ALDD` on any other binning is rejected
+with a warning rather than scoring something arbitrary.
 
-A standard proton-only `AUXSCORE PROTON` includes both primary and secondary protons. `P1DO` keeps only source-generation protons.
+Caveats worth knowing before quoting a number:
 
-## Minimal FLUSCW example
+- **`DOSE-H2O` misses heavy fragments.** `GETLET` has no water stopping power for Li and
+  above, so they drop out. That bites harder here than for the LET moments, because
+  fragments are exactly the high-LET component dirty dose is meant to capture. The `DOSE`
+  variant has no such gap.
+- **Point-like depositions are excluded**, because `TRACKR` carries no step data for them
+  and their LET cannot be reconstructed. Two of these are genuinely high-LET and so are
+  under-counted: heavy recoils (`JTRACK` 208) and low-energy neutron kerma (308).
+- **Electrons and positrons are excluded**, as for `ALL1`/`ALL2`, and for the same reason:
+  the threshold is applied to unrestricted LET, which already contains the δ-ray energy, so
+  scoring the δ-rays as dirty-dose carriers in their own right would count it twice.
 
-`FLUSCW` is used for fluence-like or track-length-like estimators. In practice, the FLUKA input must contain a `USRBIN` scorer with a four-character scorer key that this routine recognizes.
+> **`DOSE-H2O` requires a `RAD-BIOL` card**, or FLUKA dies with a SIGFPE in
+> `dedx/alphbt.f:382` (`alphbt` called with `rbealp=-1`, `rbebet=0`) via `score/usrsco.f`
+> — no message about the real cause, and only in materials other than water, so a water
+> phantom runs and a carbon one aborts. This is FLUKA's own behaviour: it reproduces with
+> the stock `fluka` executable and no user routines at all. The α/β file content is *not*
+> used by `DOSE-H2O` — a FLUKA developer
+> [confirmed on the forum](https://fluka-forum.web.cern.ch/t/dose-to-water-issue/6128) that
+> it is required only "for technical reasons — to be overcome at a later stage". Any valid
+> file will do; `tests/letbio.dat` is a minimal one.
 
-Schematic example for an all-proton local-material LET moment:
+## A note on ancestry
 
-    USRBIN        ...    ENERGY      ...       PAL1
-    USRBIN        ...       ...      ...
-
-In this schematic example, the scorer key is `PAL1`. When FLUKA calls `FLUSCW` for that scorer, this routine:
-
-1. checks that the transported particle is a proton;
-2. uses the local material with `MATLET = MEDFLK(NREG,1)`;
-3. calls `GETLET` for the proton electronic stopping power in that material;
-4. converts the result to linear LET with `LETLIN = RHO(MATLET) * LETW`;
-5. returns `LETLIN` as the scoring weight.
-
-To reconstruct averaged LET, the `L1` and `L2` scorers must be paired with the corresponding unweighted scorer in post-processing.
-
-Typical all-proton local-material set:
-
-- unweighted all-proton fluence or track-length scorer;
-- `PAL1`, all-proton local-material LET moment;
-- `PAL2`, all-proton local-material LET² moment.
-
-Typical primary-proton local-material set:
-
-- `P1FL`, primary-proton fluence filter;
-- `P1L1`, primary-proton local-material LET moment;
-- `P1L2`, primary-proton local-material LET² moment.
-
-Typical water-reference set:
-
-- `PAW1` and `PAW2` for all transported protons evaluated in water;
-- `P1W1` and `P1W2` for primary protons evaluated in water.
-
-The exact `USRBIN` geometry, binning, estimator type, unit number, and output filename are defined in the FLUKA input file, not in this user routine.
-
-## Minimal COMSCW example
-
-`COMSCW` is used for dose-like energy-deposition estimators. It is needed when a `DOSE`-type scorer must reject some particles before the deposited-energy contribution is scored.
-
-Schematic example for primary-proton dose:
-
-    USRBIN        ...      DOSE      ...       P1DO
-    USRBIN        ...       ...      ...
-
-In this schematic example, the scorer key is `P1DO`. When FLUKA calls `COMSCW` for that scorer, this routine:
-
-1. checks that the active call is for a dose-like scoring estimator;
-2. checks that `IJ = 1`, meaning the transported particle is a proton;
-3. checks that `LTRACK = 1`, meaning the proton is source-generation/primary;
-4. returns `ONEONE` if both conditions are true;
-5. returns `ZERZER` otherwise.
-
-Therefore `P1DO` is a primary-proton dose filter.
-
-This differs from a standard proton-only `AUXSCORE PROTON` dose scorer. A standard proton-only dose scorer includes both primary and secondary protons. `P1DO` keeps only source-generation protons.
-
-The lithium dose filters work similarly:
-
-- `L6DO` keeps only dose contributions from transported Li-6 fragments;
-- `L7DO` keeps only dose contributions from transported Li-7 fragments.
+`LTRACK` gives the generation (1 = source-generation), and the isotope filters classify
+the *currently transported* particle. None of these record the production vertex, parent
+particle, or reaction channel — that would require production-time tagging via `STUPRF`
+or `MDSTCK`.
 
 ## Compilation
 
-This file must be compiled and linked with FLUKA's user-routine build tools.
+Compile the routine and link it into a custom FLUKA executable with the FLUKA build
+tools. Compiled and linked with **FLUKA 4** (`fff` + `lfluka`):
 
-Example:
+```bash
+export FLUPRO=/usr/local/fluka        # your FLUKA install
+export PATH=$PATH:$FLUPRO/bin
+fff fluka_let_scoring.f               # -> fluka_let_scoring.o
+lfluka -m fluka -o flukalet fluka_let_scoring.o
+```
 
-    export FLUPRO=/path/to/fluka
-    export FLUKADATA=$FLUPRO/data
-    $FLUPRO/bin/ldpmqmd -o fluka_let_scoring_test fluka_let_scoring.f
+The include files are referenced by their literal names (`INCLUDE 'dblprc.inc'`), which
+is what `fff` expects. The exact tool names vary between FLUKA distributions (older
+`ldpmqmd` wrappers work too).
 
-The exact FLUKA path and wrapper name may differ between installations.
+## Testing
 
-This repository has been compile-tested with literal FLUKA include-file names such as:
+`tests/` contains a ready-to-run example, `plan01_field01_geoA_SOBPcent.inp`, that
+exercises the scorer keys (proton, light-fragment, and lithium LET moments plus the
+dose/fluence filters). It uses a `SOURCE` reading the accompanying `sobp.dat` spot list,
+so the executable must also link the source sampler from `../fluka_sobp_source`:
 
-    INCLUDE 'dblprc.inc'
+```bash
+fff ../fluka_sobp_source/source_sampler.f
+lfluka -m fluka -o flukalet fluka_let_scoring.o source_sampler.o
+cd tests && rfluka -e ../flukalet -N0 -M1 plan01_field01_geoA_SOBPcent
+```
 
-On the tested FLUKA installation, token-style includes such as `INCLUDE '(DBLPRC)'` did not compile with the local `ldpmqmd` wrapper.
+On the first scoring call the run prints `fluka_let_scoring: water MWATER = <n>` to the
+`.out`, confirming the auto-detected water material.
 
-## Practical checklist when adding or changing a scorer
+## Adding or changing a scorer
 
-When adding or changing a scorer key:
-
-1. Keep the scorer key to four characters.
-2. Add the key to the correct dispatch block in `FLUSCW` or `COMSCW`.
-3. Document whether the scorer is fluence-like, track-length-like, or dose-like.
-4. Document the particle selection.
-5. Document whether the scorer includes all transported particles or only primary/source-generation particles.
-6. Document whether LET is evaluated in the local material or in the water-reference material.
-7. Document whether the returned quantity is LET, LET², or a filter weight.
-8. Update any FLUKA input cards using the scorer key.
-9. Update post-processing scripts that read the corresponding output files.
-10. Compile-test the modified user routine.
-11. Run at least one small FLUKA smoke test before using the scorer in production.
+1. Keep the key to four characters and add it to the right dispatch block
+   (`FLUSCW` for fluence/track-length, `COMSCW` for dose).
+2. Document: particle selection; all vs. primary-only; local vs. water; LET, LET², or
+   filter weight.
+3. Update the input cards and any post-processing that reads the output units.
+4. Compile-test, then run a small smoke test before production use.
