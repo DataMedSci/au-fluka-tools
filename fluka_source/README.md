@@ -64,8 +64,8 @@ SOURCE
 Spotlists can be generated from DICOM `RTPLAN` files with
 [dicomexport](https://github.com/nbassler/dicomexport).
 
-A plan alone is not enough: `RTPLAN` gives spot positions and monitor units, but not the
-energy, spot size or divergence the machine actually delivers for them. dicomexport folds
+A plan alone is not enough: `RTPLAN` gives nominal energy, spot positions and monitor units, but not the
+actual energy, spot size or divergence the machine actually delivers for them. dicomexport folds
 in a **beam model** to supply those, and ships beam models for DCPT — so for that facility
 the spot list can be produced straight from the plan, with no extra calibration work.
 
