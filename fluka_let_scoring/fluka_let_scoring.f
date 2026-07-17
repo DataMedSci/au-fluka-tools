@@ -1464,26 +1464,6 @@ C     ------------------------------------------------------------------
 *=== End of function Comscw ===========================================*
       END
 C=======================================================================
-C Water material lookup, shared by FLUSCW and COMSCW.
-C=======================================================================
-C
-C     Returns in MWATER the material index to use for the water-reference
-C     scorers. Resolved once, on the first call, and cached; the result is
-C     written to the FLUKA output (LUNOUT) so it can be verified.
-C
-C     MWATER is resolved as:
-C        1. MATQLT -- FLUKA's built-in "extra water material for Q(L)
-C           calculations" (flkmat.inc). This exists for dose-equivalent /
-C           quality-factor scoring and is available even when the input
-C           deck defines no explicit WATER material.
-C        2. otherwise, the first material named 'WATER' in MATNAM.
-C        3. otherwise MWATER stays .LE. 0 and the water-reference scorers
-C           return zero (a warning is written to LUNOUT).
-C
-C     Both FLUSCW and COMSCW need this, so it lives in one place: the
-C     lookup cannot drift between them, and the log line is printed once.
-C=======================================================================
-C=======================================================================
 C Effective-charge radiation quality Qeff, shared by FLUSCW and COMSCW.
 C=======================================================================
 C
@@ -1559,6 +1539,9 @@ C     Speed.
       BETA = PTRACK / ETRACK
       IF ( BETA .LE. ZERZER ) RETURN
 
+C     TWOTHI is FLUKA's own named constant for 2/3 (dblprc.inc, alongside
+C     ONEONE and ZERZER); ZABS**(-TWOTHI) is the Barkas z^(-2/3). It is not
+C     a local variable -- do not "define it" or inline it as 2.0D0/3.0D0.
       ZABS = DBLE( ABS( IZ ) )
       ZEFF = DBLE( IZ ) *
      &       ( ONEONE - EXP( -1.25D+02 * BETA * ZABS**(-TWOTHI) ) )
@@ -1569,6 +1552,26 @@ C     Speed.
       RETURN
 *=== End of subroutine Qefcal =========================================*
       END
+C=======================================================================
+C Water material lookup, shared by FLUSCW and COMSCW.
+C=======================================================================
+C
+C     Returns in MWATER the material index to use for the water-reference
+C     scorers. Resolved once, on the first call, and cached; the result is
+C     written to the FLUKA output (LUNOUT) so it can be verified.
+C
+C     MWATER is resolved as:
+C        1. MATQLT -- FLUKA's built-in "extra water material for Q(L)
+C           calculations" (flkmat.inc). This exists for dose-equivalent /
+C           quality-factor scoring and is available even when the input
+C           deck defines no explicit WATER material.
+C        2. otherwise, the first material named 'WATER' in MATNAM.
+C        3. otherwise MWATER stays .LE. 0 and the water-reference scorers
+C           return zero (a warning is written to LUNOUT).
+C
+C     Both FLUSCW and COMSCW need this, so it lives in one place: the
+C     lookup cannot drift between them, and the log line is printed once.
+C=======================================================================
       SUBROUTINE LETMWA ( MWATER )
 
       INCLUDE 'dblprc.inc'
