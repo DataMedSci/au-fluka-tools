@@ -142,6 +142,17 @@ USRBIN          10.0     228.0     -66.0      1.00      1.00     10.25      L6DO
 USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
 USRBIN          10.0     228.0     -67.0      1.00      1.00     10.25      L7DO_DZ
 USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+* All-charged-particle LET moments (local material). Pair with AFLU_ZN:
+*   dose-averaged LET = ALL2 / ALL1 ; track-averaged LET = ALL1 / AFLU
+USRBIN          10.0     201.0     -68.0      1.00      1.00     10.25      ALL1_ZN
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+USRBIN          10.0     201.0     -69.0      1.00      1.00     10.25      ALL2_ZN
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+* Water-reference variants (GETLET in water; p, d, t, 3He, 4He only)
+USRBIN          10.0     201.0     -70.0      1.00      1.00     10.25      ALW1_ZN
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+USRBIN          10.0     201.0     -71.0      1.00      1.00     10.25      ALW2_ZN
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
 USERWEIG         0.0       0.0       1.0       0.0       0.0       1.0
 RANDOMIZ         1.0       0.0
 START       100000.0

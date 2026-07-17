@@ -26,11 +26,17 @@ of averaged LET in radiation biology for particle therapy.* Radiotherapy and Onc
 ## The main quantity: all-particle dose-averaged LET
 
 The headline scorers are `ALL1` and `ALL2`: the first and second LET moments over **all
-charged particles**. Their LET is the true *local* energy-deposition LET, reconstructed
-per step from `TRACKR` as `LET = 100 * ΣDTRACK / ΣTTRACK` (dE_dep / step-length,
-GeV/cm → keV/µm). This works for every charged particle FLUKA transports — protons,
-light ions, and heavy fragments — with no per-species handling and no dependence on
-`GETLET`.
+charged hadrons and ions**. Their LET is the true *local* energy-deposition LET,
+reconstructed per step from `TRACKR` as `LET = 100 * ΣDTRACK / ΣTTRACK` (dE_dep /
+step-length, GeV/cm → keV/µm). This works for every charged hadron and ion FLUKA
+transports — protons, light ions, and heavy fragments — with no per-species handling and
+no dependence on `GETLET` or an explicit material-index lookup. The LET still depends
+physically on the local material, through the energy deposited per unit track length.
+
+Neutral particles are skipped, and **electrons and positrons are excluded** even when EMF
+transport is active: averaged-LET reporting conventionally covers the hadron/ion field,
+and including deltas would tie track-averaged LET to the EMF transport threshold rather
+than to the physics.
 
 Score three co-located `USRBIN` bins over the same region: an ordinary (unweighted)
 track-length fluence, plus `ALL1` and `ALL2`. Schematic input:
@@ -66,7 +72,7 @@ Kalholm review stresses:
 
 - **Local energy-deposition LET** (`ALL1/ALL2`, and the lithium scorers): the actual
   dE/dx deposited along the step in the current material, from `TRACKR`. Universal (all
-  charged particles), always evaluated in the **local** material.
+  charged hadrons and ions), always evaluated in the **local** material.
 - **Electronic stopping-power LET** (`GETLET`): analytic mass stopping power converted to
   linear LET via `LETLIN = RHO(MAT) * GETLET(...)`. Can be evaluated in the **local**
   material or in **water**, but only for the light particles `GETLET` supports
@@ -101,8 +107,8 @@ All-particle (recommended starting point):
 
 | Key | Meaning | Selection | Material | Weight |
 |---|---|---|---|---|
-| `ALL1` | all-particle LET moment | all charged particles | local | LET |
-| `ALL2` | all-particle LET² moment | all charged particles | local | LET² |
+| `ALL1` | all-particle LET moment | charged hadrons + ions (no e±) | local | LET |
+| `ALL2` | all-particle LET² moment | charged hadrons + ions (no e±) | local | LET² |
 | `ALW1` | all-particle water LET moment | p, d, t, ³He, ⁴He | water | LET |
 | `ALW2` | all-particle water LET² moment | p, d, t, ³He, ⁴He | water | LET² |
 

@@ -645,9 +645,21 @@ C
 C        LET [keV/um] = 100 * SUMD [GeV] / SUMT [cm]
 C
 C     (1 GeV/cm = 100 keV/um). This definition is universal: it is valid
-C     for every charged particle FLUKA transports -- protons, light ions,
-C     and heavy fragments -- independent of GETLET and independent of the
-C     local material. Neutral particles carry no LET and are skipped.
+C     for every charged hadron and ion FLUKA transports -- protons, light
+C     ions, and heavy fragments -- independent of GETLET or an explicit
+C     material-index lookup. The quantity still depends physically on the
+C     local transported material, through the energy deposited along the
+C     step (DTRACK) per unit track length (SUMT).
+C
+C     Particle selection:
+C        Neutral particles carry no LET and are skipped.
+C        Electrons and positrons (JTRACK = 3, 4) are deliberately
+C        EXCLUDED even when EMF transport is active. Averaged-LET
+C        reporting for particle therapy conventionally covers the
+C        hadron/ion field only; delta electrons are the energy-transfer
+C        mechanism rather than separate LET carriers. Including them
+C        would also make track-averaged LET depend on the EMF transport
+C        threshold instead of on the physics.
 C
 C     Post-processing (pair with the matching unweighted fluence scorer,
 C     e.g. an ordinary track-length USRBIN of the same particle set):
@@ -659,10 +671,12 @@ C     ==================================================================
       IF ( SCONAM(1:4) .EQ. 'ALL1' .OR. SCONAM(1:4) .EQ. 'ALL2' ) THEN
          FLUSCW = ZERZER
 
-C        Skip neutral particles (regular particles with zero charge).
-C        Ions are transported with JTRACK .LT. 0 and are always charged.
+C        Skip neutral particles (regular particles with zero charge) and
+C        electrons/positrons (JTRACK = 3, 4). Ions and nuclear fragments
+C        are transported with JTRACK .LT. 0 and are always charged.
          IF ( JTRACK .GT. 0 ) THEN
             IF ( ICHRGE(JTRACK) .EQ. 0 ) RETURN
+            IF ( JTRACK .EQ. 3 .OR. JTRACK .EQ. 4 ) RETURN
          END IF
 
          SUMT = ZERZER
