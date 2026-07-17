@@ -176,6 +176,18 @@ USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
 * unfiltered dose-to-water, the denominator for ALDD_WZ
 USRBIN          10.0     252.0     -76.0      1.00      1.00     10.25      DSW_ZN
 USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+* Qeff = z_eff^2/beta^2 (Barkas), no material dependency at all.
+* Track-averaged Qeff = ALQ1 / ALQF
+USRBIN          10.0     201.0     -77.0      1.00      1.00     10.25      ALQ1_ZN
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+USRBIN          10.0     201.0     -78.0      1.00      1.00     10.25      ALQF_ZN
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+* Dose-averaged Qeff = ALQD / DOSE_ZN (u21)
+USRBIN          10.0     228.0     -79.0      1.00      1.00     10.25      ALQD_DZ
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
+* Dirty dose by Qeff threshold: dirty fraction = ALDQ / DOSE_ZN (u21)
+USRBIN          10.0     228.0     -80.0      1.00      1.00     10.25      ALDQ_DZ
+USRBIN         -1.00     -1.00    -10.25       1.0       1.0     205.0       &
 USERWEIG         0.0       0.0       1.0       0.0       0.0       1.0
 * DOSE-H2O needs a RAD-BIOL card present; its alpha/beta content is not
 * used for dose-to-water (FLUKA developers confirm), but omitting the

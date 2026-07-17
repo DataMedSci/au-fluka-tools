@@ -8,7 +8,8 @@ Auxiliary tools for the Monte Carlo particle transport code
 ### FLUKA user routines ###
 
 - [`fluka_let_scoring/`](fluka_let_scoring/) — `FLUSCW`/`COMSCW` routines for LET-moment
-  scoring (track- and dose-averaged LET) and dirty dose. See its
+  scoring (track- and dose-averaged LET), dirty dose, and Qeff (the material-independent
+  effective-charge quality metric, z_eff²/β²). See its
   [README](fluka_let_scoring/README.md) for the scorer keys and post-processing.
 - [`fluka_source/`](fluka_source/) — `SOURCE` routine sampling a spread-out
   Bragg peak from a spot list.
