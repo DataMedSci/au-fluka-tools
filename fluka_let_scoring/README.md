@@ -1,4 +1,4 @@
-# FLUKA LET and Qeff scoring routines
+# FLUKA LET, Qeff and Dirty Dose scoring routines
 
 FLUKA `FLUSCW` and `COMSCW` user-weighting routines for scoring LET and Qeff moments, from
 which averaged radiation-quality quantities (track-averaged and dose-averaged) are
@@ -9,22 +9,23 @@ executable, then activate them from your input file with a `USERWEIG` card.
 
 References:
 
-- Averaged LET (the LET-moment scorers): Kalholm F, Grzanka L, Traneus E, Bassler N.
-  *A systematic review on the usage of averaged LET in radiation biology for particle
-  therapy.* Radiotherapy and Oncology. 2021;161:211-21.
-- Dirty dose (the `ALDD` scorer): Heuchel L, Hahn C, Ödén J, Traneus E, Wulff J,
-  Timmermann B, Bäumer C, Lühr A. *The dirty and clean dose concept: towards creating
-  proton therapy treatment plans with a photon-like dose response.* Medical Physics.
-  2024;51(1):622-36. Introduces the concept, and discusses the choice of threshold.
-- Dirty dose applied to RBE: Kalholm F, Toma-Dasu I, Traneus E. *'Dirty dose'-based proton
-  variable RBE models — performance assessment on in vitro data.* Medical Physics.
-  2025;52(2):1311-22.
-- Qeff (the `ALQ1`/`ALQF`/`ALQD`/`ALDQ` scorers): Kalholm F, Grzanka L, Toma-Dasu I,
-  Bassler N. *Modeling RBE with other quantities than LET significantly improves
-  prediction of in vitro cell survival for proton therapy.* Medical Physics.
-  2023;50(1):651-9.
-- Kalholm F, et al. *Novel radiation quality metrics accounting for proton energy spectra
-  for RBE proton models.* Medical Physics. 2024;51(8):5773-82.
+## References
+
+**Averaged LET (the LET-moment scorers):**
+> Kalholm F, Grzanka L, Traneus E, Bassler N. A systematic review on the usage of averaged LET in radiation biology for particle therapy. Radiotherapy and Oncology. 2021;161:211-221.
+
+**Dirty dose (the `ALDD` scorer):**
+> Heuchel L, Hahn C, Ödén J, Traneus E, Wulff J, Timmermann B, Bäumer C, Lühr A. The dirty and clean dose concept: towards creating proton therapy treatment plans with a photon-like dose response. Medical Physics. 2024;51(1):622-636.*
+  Introduces the concept, and discusses the choice of threshold.
+
+**Dirty dose applied to RBE:**
+> Kalholm F, Toma-Dasu I, Traneus E. "Dirty dose"-based proton variable RBE models — performance assessment on in vitro data. Medical Physics. 2025;52(2):1311-1322.
+
+**Qeff (the `ALQ1`/`ALQF`/`ALQD`/`ALDQ` scorers):**
+> Kalholm F, Grzanka L, Toma-Dasu I, Bassler N. Modeling RBE with other quantities than LET significantly improves prediction of in vitro cell survival for proton therapy. Medical Physics. 2023;50(1):651-659.
+
+**Extended Qeff metrics:**
+>  Kalholm F, et al. Novel radiation quality metrics accounting for proton energy spectra for RBE proton models. Medical Physics. 2024;51(8):5773-5782.
 
 ## Quick start
 
