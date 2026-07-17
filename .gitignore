@@ -3,3 +3,6 @@
 .claude
 __pycache__/
 *.pyc
+
+# default executable name produced by lfluka / ldpmqmd
+/fluka

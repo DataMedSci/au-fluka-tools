@@ -14,18 +14,18 @@
 !! This source needs an additional file (typically sobp.dat)
 !! with description of pencil beam geometry and kinematics.
 !!
-!! This implementation is based on a template from $FLUPRO/usermvax/source.f
+!! This implementation is based on a template from $FLUPRO/src/user/source.f
 !!
 !! In order to use the source, first compile this file using
 !! following command or Flair GUI:
 !!
-!!  ldpmqmd -oflukadpm_sobp source_sampler.f
+!!  fff source_sampler.f && lfluka -m fluka -o fluka_source source_sampler.o
 !!
 !! Then get a file called sobp.dat and put it in the same directory as
 !! your Fluka input file. In the input file add a card called SOURCE
 !! to activate this custom source. To run it, call (or use Flair):
 !!
-!! rfluka -N0 -M1 -e flukadpm_sobp your_input_file
+!! rfluka -N0 -M1 -e fluka_source your_input_file
 !!
 !!
 !!

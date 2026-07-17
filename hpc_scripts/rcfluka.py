@@ -84,7 +84,7 @@ from optparse import OptionParser
 
 version = "1.46-alpha"
 
-dir_rfluka = '$FLUPRO/flutil/rfluka'
+dir_rfluka = '$FLUPRO/bin/rfluka'
 
 
 def condor_ids():  # returns list of running processes
@@ -118,7 +118,7 @@ if args.__len__() < 1:
     print("Error: no input file stated.")
     print("")
     print("Usage example: run c12_400.inp on 5 nodes with user routines:")
-    print("rcfluka.py -M5 c12_400 -s fluscw.f,comscw.f -l ldpm3qmd")
+    print("rcfluka.py -M5 c12_400 -s fluscw.f,comscw.f -l ldpmqmd")
     print("")
     print("Type rcfluka.py -h for complete option list.")
     print("")
@@ -148,7 +148,7 @@ parser.add_option("-t", "--test", action="store_true", dest="test",
 parser.add_option("-S", "--standard", action="store_true", dest="standard",
                   default=False, help="Submit to standard universe.")
 parser.add_option("-l", "--linker", dest="LINKER",
-                  help="Linker to use, e.g. ldpm3qmd.", metavar="FILE")
+                  help="Linker to use, e.g. ldpmqmd.", metavar="FILE")
 parser.add_option("-o", "--optioncondor", dest="OPTC",
                   help="Additional optional string to be included in condor submit file.", metavar="string")
 parser.add_option("-i", "--includecondor", dest="INCC",
@@ -271,9 +271,9 @@ for ii in range(nr_jobs):
     if options.LINKER is not None:
         # use condor compile on linking script.
         if options.standard:
-            file.write('condor_compile $FLUPRO/flutil/' + options.LINKER)
+            file.write('condor_compile $FLUPRO/bin/' + options.LINKER)
         else:
-            file.write('$FLUPRO/flutil/' + options.LINKER)
+            file.write('$FLUPRO/bin/' + options.LINKER)
         if options.SOURCE is not None:
             for fff in options.SOURCE.split(","):
                 file.write(" " + fff)
@@ -281,9 +281,9 @@ for ii in range(nr_jobs):
             options.EXE = "./_rcfluka_generetated_flukaexec"
         file.write(" -o " + options.EXE + '\n')
         # after compilation, execute FLUKA with these options:
-        file.write('$FLUPRO/flutil/rfluka -N0 -M1 -e ' + options.EXE + " " + temp_filename + "\n")
+        file.write('$FLUPRO/bin/rfluka -N0 -M1 -e ' + options.EXE + " " + temp_filename + "\n")
     else:
-        file.write('$FLUPRO/flutil/rfluka -N0 -M1 ' + temp_filename + "\n")
+        file.write('$FLUPRO/bin/rfluka -N0 -M1 ' + temp_filename + "\n")
     file.close()
     # something is bad with the ownerships of the files when transferring. this is a fix:
     os.chmod(shell_filename, "0744")

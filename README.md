@@ -10,13 +10,14 @@ Auxiliary tools for the Monte Carlo particle transport code
 - [`fluka_let_scoring/`](fluka_let_scoring/) — `FLUSCW`/`COMSCW` routines for LET-moment
   scoring (track- and dose-averaged LET) and dirty dose. See its
   [README](fluka_let_scoring/README.md) for the scorer keys and post-processing.
-- [`fluka_sobp_source/`](fluka_sobp_source/) — `SOURCE` routine sampling a spread-out
+- [`fluka_source/`](fluka_source/) — `SOURCE` routine sampling a spread-out
   Bragg peak from a spot list.
 
 ### Running FLUKA on a cluster ###
 
-- `rcfluka.py` — parallelisation of FLUKA runs using the CONDOR job queuing system.
-- `rtfluka.sh` — parallelisation on TORQUE.
+See [`hpc_scripts/`](hpc_scripts/) — `rsfluka.sh` for SLURM and `rcfluka.py` for HTCondor.
+FLUKA is serial, so you parallelise by running independent copies with different random
+seeds and merging the binary output afterwards.
 
 ### Post-processing USRBIN and friends ###
 
