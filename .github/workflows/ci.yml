@@ -1,0 +1,52 @@
+name: CI
+
+# FLUKA is not freely redistributable, so nothing here runs FLUKA: the
+# scoring routines cannot be compiled, let alone exercised, on a public
+# runner. Their include files (dblprc.inc, trackr.inc, ...) ship with
+# FLUKA, so even a gfortran -fsyntax-only check is out of reach -- faking
+# them would mean hand-maintaining ~80 symbols that drift from the real
+# headers, which is worse than no check at all.
+#
+# What is left is the one class of mistake that compiling does NOT catch:
+# see below.
+#
+# Replaces the old .travis.yml, which stopped running when Travis dropped
+# open-source support in 2021 and had gone stale unnoticed since.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fortran-format:
+    name: Fortran fixed-form
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # fff compiles with -ffixed-line-length-132, which SILENTLY TRUNCATES
+      # anything past column 132. The file still compiles; it just quietly
+      # means something other than what is written. gfortran issues no
+      # warning (fff also passes -Wno-tabs, -Wno-unused-*), so a local build
+      # will not reveal it either -- which is exactly why it is worth a job.
+      #
+      # Nothing is over 132 today (longest line is 101), so this is a
+      # regression guard rather than a fix.
+      - name: No source line over 132 columns
+        run: |
+          bad=0
+          for f in $(git ls-files '*.f'); do
+            if awk -v file="$f" 'length > 132 {
+                   printf "%s:%d: %d columns (limit 132)\n", file, FNR, length
+                   found = 1
+                 } END { exit !found }' "$f"; then
+              bad=1
+            fi
+          done
+          if [ "$bad" -ne 0 ]; then
+            echo "::error::Fixed-form source exceeds 132 columns; fff would silently truncate it."
+            exit 1
+          fi
+          echo "All fixed-form sources are within 132 columns."
