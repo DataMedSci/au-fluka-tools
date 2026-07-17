@@ -1,4 +1,4 @@
-# FLUKA LET, Qeff and Dirty Dose scoring routines
+# LET, Qeff and Dirty Dose scoring routines
 
 FLUKA `FLUSCW` and `COMSCW` user-weighting routines that score the LET and Qeff moments
 from which track-averaged and dose-averaged radiation-quality quantities are reconstructed
@@ -113,21 +113,22 @@ mean of LET.
 Which particles a key sees follows from its LET route, not its name (see
 [Implementation details](#implementation-details)). e± and neutrals are excluded from every
 key. Moment suffix `1`/`2` (and `W1`/`W2` for water) = first / second raw LET moment,
-weighted by LET / LET²; units keV/µm and (keV/µm)².
+weighted by LET / LET²; units keV/µm and (keV/µm)². Material applies only to the
+LET-weighted keys, where a stopping power is evaluated; for fluence and Qeff it is N/A.
 
 ### Handled by `FLUSCW` (fluence / track-length weighting)
 
 | Key | Weight | Scores | Material |
 |---|---|---|---|
 | `ALL1` / `ALL2` | LET / LET² | all charged hadrons + ions | local |
-| `ALFL` | 1 | all charged hadrons + ions (denominator for `ALL1`/`ALL2`) | — |
+| `ALFL` | 1 | all charged hadrons + ions (denominator for `ALL1`/`ALL2`) | *N/A* |
 | `ALW1` / `ALW2` | LET / LET² | p, d, t, ³He, ⁴He | water |
-| `ALWF` | 1 | p, d, t, ³He, ⁴He (denominator for `ALW1`/`ALW2`) | — |
-| `ALQ1` | Qeff | all charged hadrons + ions | *(none)* |
-| `ALQF` | 1 | all charged hadrons + ions (denominator for `ALQ1`) | *(none)* |
+| `ALWF` | 1 | p, d, t, ³He, ⁴He (denominator for `ALW1`/`ALW2`) | *N/A* |
+| `ALQ1` | Qeff | all charged hadrons + ions | *N/A* |
+| `ALQF` | 1 | all charged hadrons + ions (denominator for `ALQ1`) | *N/A* |
 | `PAL1` / `PAL2` | LET / LET² | all protons | local |
 | `PAW1` / `PAW2` | LET / LET² | all protons | water |
-| `P1FL` | 1 / 0 | primary protons (`LTRACK=1`) | — |
+| `P1FL` | 1 / 0 | primary protons (`LTRACK=1`) | *N/A* |
 | `P1L1` / `P1L2` | LET / LET² | primary protons | local |
 | `P1W1` / `P1W2` | LET / LET² | primary protons | water |
 | `D2L1` / `D2L2` | LET / LET² | deuterons | local |
@@ -136,7 +137,7 @@ weighted by LET / LET²; units keV/µm and (keV/µm)².
 | `H4L1` / `H4L2` | LET / LET² | ⁴He / α | local |
 | `L6L1` / `L6L2` | LET / LET² | Li-6 (Z=3, A=6) | local |
 | `L7L1` / `L7L2` | LET / LET² | Li-7 (Z=3, A=7) | local |
-| `L6FL` / `L7FL` | 1 / 0 | Li-6 / Li-7 fluence | — |
+| `L6FL` / `L7FL` | 1 / 0 | Li-6 / Li-7 fluence | *N/A* |
 
 ### Handled by `COMSCW` (dose weighting)
 
