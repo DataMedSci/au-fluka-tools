@@ -331,10 +331,10 @@ is what `fff` expects. The exact tool names vary between FLUKA distributions (ol
 `tests/` contains a ready-to-run example, `plan01_field01_geoA_SOBPcent.inp`, that
 exercises the scorer keys (proton, light-fragment, and lithium LET moments plus the
 dose/fluence filters). It uses a `SOURCE` reading the accompanying `sobp.dat` spot list,
-so the executable must also link the source sampler from `../fluka_sobp_source`:
+so the executable must also link the source sampler from `../fluka_source`:
 
 ```bash
-fff ../fluka_sobp_source/source_sampler.f
+fff ../fluka_source/source_sampler.f
 lfluka -m fluka -o flukalet fluka_let_scoring.o source_sampler.o
 cd tests && rfluka -e ../flukalet -N0 -M1 plan01_field01_geoA_SOBPcent
 ```

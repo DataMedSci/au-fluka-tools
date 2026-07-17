@@ -1,6 +1,14 @@
-## Particle Source for Pencil Beam Scanning in Hadrontherapy
+## Spot-list Particle Source for Pencil Beam Scanning
 
-A FLUKA user-defined source implementation for simulating pencil beam scanning in hadrontherapy applications. This source creates spread-out Bragg peak (SOBP) shapes in depth by simulating multiple beamlets with configurable properties.
+A FLUKA user-defined `SOURCE` routine that samples primaries from a **spot list**: an
+external table of beamlets, each with its own energy, position, size, divergence and
+weight.
+
+Nothing about the routine is specific to a spread-out Bragg peak — it samples whatever
+spot list you give it, from a single pencil beam to a full scanned field. A SOBP is simply
+the most common case, and is what the default file name (`sobp.dat`) and the example in
+`../tests/` reflect: a set of beamlets whose energies and weights combine into a flat
+depth-dose plateau.
 
 ### Features
 
@@ -11,19 +19,29 @@ A FLUKA user-defined source implementation for simulating pencil beam scanning i
 
 
 ### Compilation
-Compile using the FLUKA utility:
+Compile and link with the FLUKA 4 tools:
 
 ```bash
-ldpmqmd -oflukadpm_sobp source_sampler.f
+export FLUPRO=/usr/local/fluka      # your FLUKA installation
+export PATH=$PATH:$FLUPRO/bin
+
+fff source_sampler.f                # -> source_sampler.o
+lfluka -m fluka -o fluka_source source_sampler.o
 ```
+
+Use `ldpmqmd` in place of `lfluka` if you need the DPMJET/RQMD event generators
+(heavy-ion projectiles); for protons `lfluka` is enough.
+
+To use this source together with the LET scorers, link both objects into one
+executable — see [`../fluka_let_scoring/README.md`](../fluka_let_scoring/README.md).
 
 Place the `sobp.dat` file in the same directory as your FLUKA input file, then activate the custom source with a SOURCE card in your input file and run:
 
 ```bash
-rfluka -N0 -M1 -e flukadpm_sobp your_input_file
+rfluka -N0 -M1 -e fluka_source your_input_file
 ```
 
-**Note**: This implementation is based on the template from `$FLUPRO/usermvax/source.f`.
+**Note**: This implementation is based on the template from `$FLUPRO/src/user/source.f`.
 
 ### Invoking
 In the FLUKA input file, you can specify the `SOURCE` card with a few arguments
@@ -37,11 +55,19 @@ SOURCE
 - WHAT(4) : `SADy` - distance from the Y-scanning magnet to the spotlist plane; must be positive when `WHAT(1)` is nonzero
 - WHAT(5) : (Not used)
 - WHAT(6) : (Not used)
-- SDUM : filename for the spotlist; `sobp.dat` if not set.
+- SDUM : filename for the spotlist; `sobp.dat` if not set. **Maximum 8 characters** —
+  FLUKA passes the SOURCE SDUM through `CHARACTER*8 SDUSOU`, so a longer name is
+  truncated (`sobp.dat` is exactly 8). The file is read from the directory you launch
+  `rfluka` in, not from the temporary working directory it creates.
 
 ### Spotlist format:
-Spotlists can be generated from DICOM `RTPLAN` files together with a suitable beam model.
-We here use the tool [dicomexport](https://github.com/nbassler/dicomexport) to generate the spotlists.
+Spotlists can be generated from DICOM `RTPLAN` files with
+[dicomexport](https://github.com/nbassler/dicomexport).
+
+A plan alone is not enough: `RTPLAN` gives spot positions and monitor units, but not the
+energy, spot size or divergence the machine actually delivers for them. dicomexport folds
+in a **beam model** to supply those, and ships beam models for DCPT — so for that facility
+the spot list can be produced straight from the plan, with no extra calibration work.
 
 The FLUKA source sampler so far expects a file named `sobp.dat` with either 5,6,7,9 or 11 columns describing every spot:
 
