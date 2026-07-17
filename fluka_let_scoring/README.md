@@ -170,7 +170,7 @@ the five light species FLUKA supplies.
 | `H4L1`/`H4L2` | ⁴He / α | everything else | `GETLET`, local |
 | `L6L1`, `L6L2`, `L6FL`, `L6DO` | Li-6 (Z=3, A=6) | everything else | `TRACKR` |
 | `L7L1`, `L7L2`, `L7FL`, `L7DO` | Li-7 (Z=3, A=7) | everything else | `TRACKR` |
-| `ALQ1`, `ALQF`, `ALQD`, `ALDQ` | every charged particle FLUKA transports except e±: p, d, t, ³He, ⁴He, Li **and all heavier fragments** | e±, neutrals, point-like depositions | `QEFCAL` (no material, no stopping-power table) |
+| `ALQ1`, `ALQF`, `ALQD`, `ALDQ` | every ion FLUKA transports: p, d, t, ³He, ⁴He, Li **and all heavier fragments** | e±, neutrals, point-like depositions | `QEFCAL` (no material, no stopping-power table) |
 
 Three consequences worth internalising:
 
