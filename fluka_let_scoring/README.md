@@ -76,20 +76,24 @@ bin, giving both dose- and track-averaged LET to water:
 * activate FLUSCW (WHAT(3)=1)
 USERWEIG          0.0       0.0       1.0                              &
 *
-* 1st water-LET moment (weight LET)    -> ALW1 (unit 22)
-USRBIN           11.0  ALL-PART      -22.  <xmax ymax zmax  bins...>    ALW1
-USRBIN         <xmin ymin zmin> ...                                    &
-* 2nd water-LET moment (weight LET^2)  -> ALW2 (unit 23)
-USRBIN           11.0  ALL-PART      -23.  <xmax ymax zmax  bins...>    ALW2
-USRBIN         <xmin ymin zmin> ...                                    &
-* unweighted fluence, same set         -> ALWF (unit 21)
-USRBIN           11.0  ALL-PART      -21.  <xmax ymax zmax  bins...>    ALWF
-USRBIN         <xmin ymin zmin> ...                                    &
+*            WHAT(1)  WHAT(2)    WHAT(3)   WHAT(4-6)           SDUM
+*            binning  particle   out-unit  max x y z           key
+* 1st water-LET moment (weight LET)   -> ALW1 (unit 22)
+USRBIN       11.0     ALL-PART   -22.      <xmax ymax zmax>    ALW1
+USRBIN       <xmin ymin zmin>              <nx ny nz>          &
+* 2nd water-LET moment (weight LET^2) -> ALW2 (unit 23)
+USRBIN       11.0     ALL-PART   -23.      <xmax ymax zmax>    ALW2
+USRBIN       <xmin ymin zmin>              <nx ny nz>          &
+* unweighted fluence, same set        -> ALWF (unit 21)
+USRBIN       11.0     ALL-PART   -21.      <xmax ymax zmax>    ALWF
+USRBIN       <xmin ymin zmin>              <nx ny nz>          &
 ```
 
-Swap `ALW*` for `ALL*` to score the local medium instead. For dirty dose or dose-averaged
-Qeff, add `WHAT(6)=1` to `USERWEIG` (this calls `COMSCW`) and add a plain `DOSE` (or
-`DOSE-H2O`) bin as the denominator.
+The two alphabetic fields are easy to swap by eye: **WHAT(2)** (`ALL-PART`) is the
+generalized particle FLUKA bins, while the trailing **SDUM** (`ALW1`) is the routine's key —
+its first four characters select the branch. Swap `ALW*` for `ALL*` to score the local
+medium instead. For dirty dose or dose-averaged Qeff, add `WHAT(6)=1` to `USERWEIG` (this
+calls `COMSCW`) and add a plain `DOSE` (or `DOSE-H2O`) bin as the denominator.
 
 ## Post-processing
 
